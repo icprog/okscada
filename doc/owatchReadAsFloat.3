@@ -1,0 +1,30 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHREADASFLOAT" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchReadAsFloat \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBfloat owatchReadAsFloat (const char *\fR\fB\fIdesc\fR\fR\fB, int \fR\fB\fItimeout\fR\fR\fB, int *\fR\fB\fIerr_code\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+The routine performs single data sample reading from a monitored subject. On success the routine returns value of the sample converted to the single float type. If the data sample is a string, the system attempts to treat the string as containing a decimal number. In case of failure (data sample not found by description or cannot be converted to number or subject does not respond before deadline or a system error occurs), the routine returns \fB0\fR and sets \fIerr_code\fR appropriately.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

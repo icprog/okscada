@@ -1,0 +1,123 @@
+<?xml version="1.0"?>
+<!DOCTYPE cmlist SYSTEM "cmsg.dtd">
+<cmlist>
+  <cmtarget name="SAMPLE">
+    <cmgroup groupno="1" code="DM" name="Dynamic modes">
+      <cmessage datano="20" name="Stream correction control">
+        <cmdesc>The message sets up data for stream correction:
+  dw 0   - maneuver start;
+  dw 1   - time to the first transition;
+  dw 2   - control character;
+  dw 3   - angular velocity;
+  dw 5   - linear velocity;
+  dw 4   - time for switch on;
+  dw 6   - speed step;
+  dw 7   - post configuration behavior;
+Use sparingly.</cmdesc>
+        <cmparamlist>
+          <cmparam type="l"/>
+          <cmparam type="h"/>
+          <cmparam type="c"/>
+          <cmparam type="d"/>
+          <cmparam type="L"/>
+          <cmparam type="H"/>
+          <cmparam type="f"/>
+          <cmparam type="C"/>
+        </cmparamlist>
+      </cmessage>
+      <cmessage datano="60" name="Select ethernet lines">
+        <cmdesc>
+  Selects an ethernet line.
+Data:
+  2  16-bit words.
+  dw 0 - its bits select ethernet lines,
+  dw 1 - its bits disable ethernet lines.',
+        </cmdesc>
+        <cmparamlist>
+          <cmparam type="H"/>
+          <cmparam type="H"/>
+        </cmparamlist>
+      </cmessage>
+      <cmessage datano="91" name="Enforce stream channel">
+        <cmdesc>
+  Unconditianlly enforces data stream channel.
+Data:
+  dw0    - channel number</cmdesc>
+        <cmparamlist>
+          <cmparam type="H"/>
+        </cmparamlist>
+      </cmessage>
+      <cmessage datano="125" name="Velocity adjustment">
+        <cmdesc>
+  Changes delta adjustment of linear velocity.
+Data:
+  Positive float number, the delta adjustment.</cmdesc>
+        <cmparamlist>
+          <cmparam type="f"/>
+        </cmparamlist>
+      </cmessage>
+      <cmessage datano="136" name="Configure time scales">
+        <cmdesc>
+  This message configures new time scales.
+Data:
+  Scale identifier and a double word.</cmdesc>
+        <cmparamlist>
+          <cmparam type="c"/>
+          <cmparam type="d"/>
+        </cmparamlist>
+      </cmessage>
+      <cmessage datano="169" name="Duration of operations">
+        <cmdesc>
+  Sets maximum duration of operations.
+  dw 0 - maximum duration expressed in virtual units.</cmdesc>
+        <cmparamlist>
+          <cmparam type="L"/>
+        </cmparamlist>
+      </cmessage>
+    </cmgroup>
+    <cmgroup groupno="6" code="DR" name="Data replacements">
+      <cmessage datano="1" name="Replace analog data">
+        <cmdesc>Forces replacement of an analog value.
+There are two parameters:
+dw0  - data name;
+dw1  - data value.</cmdesc>
+        <cmparamlist>
+          <cmparam type="C"/>
+          <cmparam type="f"/>
+        </cmparamlist>
+      </cmessage>
+    </cmgroup>
+    <cmgroup groupno="8" code="AM" name="Angular modes">
+      <cmessage datano="138" name="Angle control adjustment">
+        <cmdesc>
+  Message for control adjustment.
+Data:
+  Single 16-bit signed int.
+  dw.0     - encoded angle from -15 to 90 inclusive, excluding 0.</cmdesc>
+        <cmparamlist>
+          <cmparam type="h"/>
+        </cmparamlist>
+      </cmessage>
+    </cmgroup>
+  </cmtarget>
+  <cmtarget name="SIM">
+    <cmgroup groupno="24" code="SC" name="Stream control">
+      <cmessage datano="1" name="Start bus exchange">
+        <cmdesc>This control message starts exchange with rack over bus.
+Arguments:
+data0 - bus number (0 = default bus).
+data1 - terminal number.</cmdesc>
+        <cmparamlist>
+          <cmparam type="h"/>
+          <cmparam type="h"/>
+        </cmparamlist>
+      </cmessage>
+    </cmgroup>
+    <cmgroup groupno="25" code="HC" name="Hardware configuration">
+      <cmessage datano="12" name="Start searching">
+        <cmdesc>The control message starts the search</cmdesc>
+        <cmparamlist/>
+      </cmessage>
+    </cmgroup>
+  </cmtarget>
+</cmlist>

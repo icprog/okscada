@@ -1,0 +1,45 @@
+owatchGetAutoCommit(3)
+======================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchGetAutoCommit - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*bool_t  owatchGetAutoCommit (void)*;
+
+
+DESCRIPTION
+-----------
+Returns current value of the *auto_commit* library parameter. This parameter
+changes the behavior of data modification routines. If *auto_commit* is 'TRUE',
+invocations of *owatchWriteXXX()* perform immediate data modification. If
+*auto_commit* is 'FALSE', the data modification routines search for target data
+samples and buffer modification requests on subjects. The actual modification
+will be performed in all affected subjects after the next *owatchCommit()* call.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

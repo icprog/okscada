@@ -1,0 +1,36 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHADDALIVEHANDLE" "3" "12/22/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchAddAliveHandler \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchAddAliveHandler (OwatchAliveHandler_t \fR\fB\fIphand\fR\fR\fB, long \fR\fB\fIparam\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine registers the subject state change handler. Returns \fIOK\fR on success. If a status change handler with the same address is already registered or the library has reached maximum number of registered handlers, the routine returns \fIERROR\fR. The state change events include transitions of subjects from offline to online and back, server connection transitions between established and shut down (these changes are tracked via the virtual \fB*\fR subject), and the domain state switching between complete and incomplete (tracked by the \fB+\fR subject, see the comment above).
+.sp
+The handler routine should have the following prototype:
+.sp
+\fBint aliveHandler (long \fR\fB\fIparam\fR\fR\fB, const char *\fR\fB\fIsubject_name\fR\fR\fB, const char *\fR\fB\fInew_state\fR\fR\fB)\fR
+.sp
+The handler will be called for the state changes occurring after the registration. When a subject goes online or offline, the handler is called with a user parameter, name of the subject changing the state and the new status: TRUE or FALSE. The value returned by handler is ignores. If due to an offline subject switching online all the permanent subjects become online, the library generates the \fBonline\fR event of the virtual "complete domain" subject with the name of "\fB+\fR". If the domain is complete, and one of permanent subjects goes offline, then before passing the subject switch event to handlers, the library generates the \fBoffline\fR event for the "\fB+\fR" subject.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

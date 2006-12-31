@@ -1,0 +1,354 @@
+#!/usr/bin/perl
+# -*-perl-*-    vi: set ts=4 sw=4 :
+#
+#  Copyright (C) 2006-2007, vitki.net. All rights reserved.
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#  $Date$
+#  $Revision$
+#  $Source$
+#
+#  Dock bar for easy access to key applications.
+#
+
+use strict;
+use FindBin qw[$Bin];
+use Cwd 'abs_path';
+BEGIN { $ENV{OPTIKUS_HOME} = abs_path("$Bin/..") unless $ENV{OPTIKUS_HOME}; }
+use lib "$ENV{OPTIKUS_HOME}/lib/perl5/site_perl";
+
+use utf8;
+use Gtk2;
+use Gtk2::Pango;
+use Optikus::Forms::Util;
+use Optikus::Watch;
+use Optikus::Log ':all';
+use Time::Local 'timelocal_nocheck';
+
+my ($mainwin, $tooltips, $plist, $redirect_pforms_log);
+my ($pforms_icon, $pforms_toggle);
+my ($local_time, $sim_time, $lamp_hbox);
+my %lamps = ();
+my $NOTIME = " SIM ----/--/-- --:--:-- ";
+
+
+sub create_main_window
+{
+  $mainwin = Gtk2::Window->new("toplevel");
+  $mainwin->signal_connect(destroy => sub { Gtk2->main_quit; 1; });
+  $tooltips = Gtk2::Tooltips->new;
+  my $vbox = Gtk2::VBox->new(0, 0);
+  $mainwin->show;
+  my $vbox = Gtk2::VBox->new(0, 0);
+  $mainwin->add($vbox);
+  my $hbox1 = Gtk2::HBox->new(0, 0);
+  my $hbox2 = Gtk2::HBox->new(0, 0);
+  $vbox->pack_start($hbox1, 0, 1, 0);
+  $vbox->pack_end($hbox2, 0, 1, 0);
+  my $toolbar = create_dockbar();
+  my $timebar = create_timebar();
+  my $statusbox = create_status_box();
+  $lamp_hbox = Gtk2::HBox->new(0, 0);
+  $hbox1->pack_start($toolbar, 0, 1, 5);
+  $hbox1->pack_start(Gtk2::VSeparator->new, 0, 0, 5);
+  $hbox1->pack_end($timebar, 0, 1, 0);
+  $hbox2->pack_start($lamp_hbox, 0, 1, 0);
+  $hbox2->pack_end($statusbox, 0, 1, 0);
+  $mainwin->show_all;
+  $mainwin->resize(550, 90);
+}
+
+sub create_status_box
+{
+  my ($button, $hbox, $frame, $box, $mode_icon, $mode_button);
+  $box = Gtk2::HBox->new(0, 0);
+
+  $pforms_toggle = Gtk2::ToggleButton->new;
+  $box->pack_start($pforms_toggle, 0, 1, 0);
+  $pforms_toggle->set_relief("none");
+  $pforms_icon = create_image("kpic/viewmagoff.png");
+  $pforms_toggle->add($pforms_icon);
+  $tooltips->set_tip($pforms_toggle, "Optikus infrastructure");
+  $pforms_toggle->signal_connect(clicked => sub {
+    my $to_on = $pforms_toggle->get_active;
+    my $is_on = Optikus::Forms::Util::pgrep("ohubd");
+    if ($to_on and not $is_on) {
+      restart_hub();
+    }
+    if (not $to_on and $is_on) {
+      system("$root_dir/bin/ocontrol stop &");
+    }
+  });
+
+  $box->pack_start(Gtk2::VSeparator->new(), 0, 1, 2);
+  $mode_button = Gtk2::Button->new;
+  $mode_button->set_relief("none");
+  $tooltips->set_tip($mode_button, "Current mode");
+  $box->pack_start($mode_button, 0, 1, 0);
+  $mode_icon = create_image("png/empty.png");
+  $mode_button->add($mode_icon);
+  Glib::Timeout->add(900, sub { sense_mode($mode_icon, $mode_button); });
+
+  $box->pack_start(Gtk2::VSeparator->new(), 0, 1, 2);
+  my $script_button = Gtk2::Button->new;
+  $script_button->set_relief("none");
+  $box->pack_start($script_button, 0, 1, 0);
+  $script_button->{found} = -1;
+  my $script_icon = create_image("png/empty.png");
+  $script_button->add($script_icon);
+  Glib::Timeout->add(2000, sub { script_check($script_button, $script_icon); });
+  $script_button->signal_connect(clicked => sub {
+                                    script_action($script_button, $script_icon);
+                                 });
+
+  $frame = Gtk2::Frame->new;
+  $frame->set_shadow_type("etched_in");
+  $frame->add($box);
+  return $frame;
+}
+
+
+sub script_check
+{
+  my ($script_button, $script_icon) = @_;
+  $plist = Optikus::Forms::Util::plist() unless defined $plist;
+  my $found = Optikus::Forms::Util::pgrep("sample-script",$plist) ? 1 : 0;
+  return 1 if $found == $script_button->{found};
+  $script_button->{found} = $found;
+  my ($icon, $tip);
+  if ($found) {
+    $icon = "kpic/exec.png";
+    $tip = "scenarios are running.\nPress here to terminate them.";
+  } else {
+    $icon = "kpic/editclear.png";
+    $tip = "scenarios not found.\nYou can press here to be sure...";
+  }
+  $script_icon->set_from_pixbuf(create_pic($icon));
+  $tooltips->set_tip($script_button, $tip);
+  return 1;
+}
+
+
+sub script_action
+{
+  my ($script_button, $script_icon) = @_;
+  run_dialog("Kill Scripts Confirmation",
+             "Are you sure to stop\nrunning scenarios ?",
+              sub {
+                system("$root_dir/bin/ocontrol cleanup &");
+                Optikus::Watch::idle(200);
+                olog "running scripts killed";
+              });
+}
+
+sub sense_mode
+{
+  my ($mode_icon, $mode_button) = @_;
+  my $mode;
+  if (length(Optikus::Watch::subject("*")) > 0) {
+    $mode = "play";
+  } else {
+    $mode = "stop";
+  }
+  return 1 if $mode eq $mode_icon->{prev_mode};
+  $mode_icon->{prev_mode} = $mode;
+  if ($mode eq "play") {
+    $mode_icon->set_from_pixbuf(create_pic("kpic/reload.png"));
+    $tooltips->set_tip($mode_button, "Current mode: RUNNING");
+  } else {
+    $mode_icon->set_from_pixbuf(create_pic("kpic/player_stop.png"));
+    $tooltips->set_tip($mode_button, "Current mode: STOP");
+  }
+  return 1;
+}
+
+
+sub add_app_toggle
+{
+  my ($box, $pic, $tip, $app, $param, $name) = @_;
+  my $toggle = Gtk2::ToggleButton->new;
+  $toggle->add(create_image("$pic"));
+  $toggle->set_relief("none");
+  $box->pack_start($toggle, 0, 1, 0);
+  $tooltips->set_tip($toggle, $tip);
+  $name = $app unless defined $name;
+  $toggle->signal_connect( clicked => sub {
+    my $to_on = $toggle->get_active;
+    my $is_on = Optikus::Forms::Util::pgrep($name);
+    if ($to_on and not $is_on) {
+      my $path = $app;
+      unless ($app =~ m'/') {
+        $path = "$pforms_home/bin/$app";
+        $path = "$root_dir/bin/$app" unless -r $path;
+        $path = "$root_dir/bin/$app" unless -r $path;
+      }
+      system("$path $param &");
+    } elsif (not $to_on and $is_on) {
+      &Optikus::Forms::Util::pkill($name,"KILL");
+    }
+  });
+  Glib::Timeout->add(4000, sub {
+    #print "checking $name pl=".length($plist)."\n";
+    my $btn_state = $toggle->get_active;
+    my $app_state = Optikus::Forms::Util::pgrep($name,$plist);
+    $toggle->set_active(0) if $btn_state and not $app_state;
+    $toggle->set_active(1) if not $btn_state and $app_state;
+    return 1;
+  });
+}
+
+sub create_dockbar
+{
+  my $hbox = Gtk2::HBox->new(0, 5);
+  add_app_toggle($hbox, "tools/book.png", "Message Viewer", "opecho");
+  add_app_toggle($hbox, "tools/sb_uvo.png", "Message Sending", "opmsg");
+  add_app_toggle($hbox, "kpic/fork.png", "Map View", "opmap");
+  add_app_toggle($hbox, "tools/tree.png", "Display Viewer", "opforms", "root");
+  add_app_toggle($hbox, "kpic/toggle_log.png", "Log Viewer", "oplogs");
+  add_app_toggle($hbox, "kpic/viewmag.png", "Data Viewer", "osee1");
+  add_app_toggle($hbox, "kpic/colorize.png", "Display Editor", "opedit");
+  return $hbox;
+}
+
+
+sub create_timebar
+{
+  my $vbox = Gtk2::VBox->new(0,4);
+  my $font_desc = Gtk2::Pango::FontDescription->from_string("Courier New Bold 14");
+  $local_time = Gtk2::Label->new(" MSK 00/00/0000 00:0--0:00 ");
+  $local_time->modify_font($font_desc);
+  $vbox->pack_start($local_time, 0, 1, 2);
+  $sim_time = Gtk2::Label->new($NOTIME);
+  $sim_time->modify_font($font_desc);
+  $vbox->pack_start($sim_time, 0, 1, 2);
+  $vbox->show_all;
+  return $vbox;
+}
+
+sub new_button
+{
+  my ($hbox, $tip, $pic, $func) = @_;
+  my $button = Gtk2::Button->new;
+  $tooltips->set_tip($button, $tip);
+  $hbox->pack_start($button, 0, 1, 1);
+  $button->add(create_image($pic));
+  $button->set_relief("none");
+  $button->signal_connect( clicked => $func );
+  return $button;
+}
+
+my $time_mon = 0;
+
+my %sim_time = (yr_hi=>0,yr_lo=>0,month=>0,day=>0,hour=>0,min=>0,sec=>0);
+
+sub update_periodic
+{
+  my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) =
+      localtime(time());
+  $local_time->set_text(sprintf(" MSK %04d/%02d/%02d %02d:%02d:%02d ",
+                                 1900+$year, $mon+1,
+                                 $mday, $hour, $min, $sec));
+  return 1 if $time_mon;
+  if (!$time_mon
+      && Optikus::Watch::subject("sample")
+      && Optikus::Watch::subject("*"))
+  {
+    olog "checking info\n";
+    my $pre = 'sample@gm_time';
+    if (Optikus::Watch::info("$pre.tm_sec")) {
+      tie $sim_time{year},  "Optikus::Watch", "$pre.tm_year", 1;
+      tie $sim_time{month}, "Optikus::Watch", "$pre.tm_mon", 1;
+      tie $sim_time{day},   "Optikus::Watch", "$pre.tm_mday", 1;
+      tie $sim_time{hour},  "Optikus::Watch", "$pre.tm_hour", 1;
+      tie $sim_time{min},   "Optikus::Watch", "$pre.tm_min", 1;
+      tie $sim_time{sec},   "Optikus::Watch", "$pre.tm_sec", sub {
+        my $s = sprintf(" SIM %04d/%02d/%02d %02d:%02d:%02d ",
+                        $sim_time{year}, $sim_time{month}, $sim_time{day},
+                        $sim_time{hour}, $sim_time{min}, $sim_time{sec});
+        $sim_time->set_text($s);
+      };
+      olog "info: connected to time data\n";
+    } else {
+      olog "error: cannot find time data\n";
+    }
+    $time_mon = 1;
+  }
+  return 1;
+}
+
+sub update_lamps
+{
+  my ($subj, $state) = @_;
+  my $on = length($state) > 0;
+  my $png = $on ? "png/green.png" : "png/red.png";
+  return if $subj eq "+";
+  if ($subj eq "*") {
+    $png = $on ? "kpic/viewmag.png" : "kpic/viewmagoff.png";
+    $tooltips->set_tip($pforms_icon->get_parent,
+                       "Optikus hub: ".
+                       ($on ? "runs" : "stopped"));
+    $pforms_icon->set_from_pixbuf(create_pic($png));
+    return;
+  }
+  return if $subj =~ /^cpu\d+$/i;
+  $sim_time->set_text($NOTIME) if $subj eq "PFORMS" and not $on;
+  unless (defined $lamps{$subj})
+  {
+    my ($button, $box, $pixmap);
+    $button = Gtk2::Button->new;
+    $box = Gtk2::HBox->new(0,0);
+    $button->add($box);
+    $tooltips->set_tip($button, "Status: $subj");
+    $pixmap = create_image("png/empty.png");
+    $box->pack_start(Gtk2::Label->new($subj),0,0,1);
+    $box->pack_start($pixmap,0,0,1);
+    #$button->set_relief("none");
+    $lamps{$subj}{pixmap} = $pixmap;
+    $lamp_hbox->add($button);
+    $lamp_hbox->show_all;
+  }
+  $lamps{$subj}{pixmap}->set_from_pixbuf(create_pic($png));
+  return 1;
+}
+
+sub restart_hub
+{
+  system("$root_dir/bin/oscan -E $redirect_pforms_log &");
+}
+
+# main
+
+pforms_gtk_init("Optikus Dock");
+$redirect_pforms_log = ">> ".Optikus::Forms::Util::pforms_log_file()." 2>&1";
+Optikus::Watch::init(client_name => "opdock",
+                     server => $ENV{OPTIKUS_SERVER},
+                     msg_dest => "sample",
+                     conn_timeout => 0,
+                     def_timeout => 2000,
+                     alive_handler => \&update_lamps,
+                     period => 300,
+                     verbosity => 2,
+                    );
+$plist = Optikus::Forms::Util::plist();
+Glib::Timeout->add(2000,
+                   sub { $plist = Optikus::Forms::Util::plist(); return 1; });
+create_main_window;
+$mainwin->window->set_icon(undef,
+          create_pic("kpic/blend.png")->render_pixmap_and_mask(1));
+$pforms_toggle->set_active(1);
+Glib::Timeout->add(800, \&update_periodic);
+Gtk2->main;
+

@@ -1,0 +1,61 @@
+owatchReadByName(3)
+===================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchReadByName - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*owop_t  owatchReadByName (const char $$*$$'desc', oval_t $$*$$'pval', char $$*$$'data_buf', int 'dbuf_len')*;
+
+
+DESCRIPTION
+-----------
+This routine performs reading of the data sample described by 'desc' without
+monitoring registration.  The 'desc' argument describes the data sample
+following the next syntax:
+
+*$$[subject'@']prototype$$*
+
+The 'prototype' string describes the data sample in the C language syntax.
+By default the data sample is searched among all subjects registered with the
+monitoring server. If there are several subjects containing data with the same
+name, the system picks the first matching name, but the search order is not
+determined. Using the optional 'subject' string the data sample location can
+be fixed.  The routine behavior can be modeled by the following pseudo-code:
+
+-------------------------------------------------------------------------------
+  ooid_t virtual_temp_ooid;
+  owop_t op1, op2;
+  op1 = owatchAddMonitor (desc, &virtual_temp_ooid);  /* indeed no monitoring is performed */
+  owatchWaitOp (op1, async_timeout, NULL);
+  op2 = owatchRead (virtual_temp_ooid, pval, data_buf, dbuf_len);
+  owatchWaitOp (op2, async_timeout, NULL);
+  owatchRemoveMonitor (virtual_temp_ooid);
+-------------------------------------------------------------------------------
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

@@ -1,0 +1,80 @@
+owatchGetAsyncTimeout(3)
+========================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchGetAsyncTimeout - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*int  owatchGetAsyncTimeout (void)*;
+
+
+DESCRIPTION
+-----------
+The function returns current value of the async_timeout library parameter.
+A number of library routines can initiate various asynchronous operations
+(connection setup, modification of a subject parameter etc) and return the
+owop_t operation handle.
+
+The 'async_timeout' parameter affects the behavior of asynchronous library
+routines as follows:
+
+- If 'async_timeout' is equal to 'OWATCH_NOWAIT', asynchronous routines are
+non-blocking. If an operation can complete immediately, the call returns
+'OWOP_OK'. If the arguments are invalid, and the operation is obviously
+incorrect, it is marked as completed with failure. Depending on the operation
+semantics the asynchronous routine will either return 'OWOP_ERROR' (in this case
+the reason for failure can be inquired only by registering the asynchronous
+completion handler), or will return the operation descriptor (then the error
+code can be inquired by passing the operation descriptor to the owatchWaitOp
+function). If the operation cannot be completed immediately, the asynchronous
+function will put it in the wait queue and return the operation descriptor.
+The operation will complete with wither success or failure later during the
+subsequent calls of *owatchWork()* and *owatchWaitOp()*. Unless the operation
+descriptor is passed to *owatchWaitOp()* or *owatchCancelOp()*, it is marked as
+occupied. After calling *owatchWaitOp()* or *owatchCancelOp()* the descriptor
+will be freed. Descriptors shall be periodically freed since the library limits
+the number of simultaneously occupied descriptors.
+
+- If 'async_timeout' is 'OWATCH_FOREVER', asynchronous routines are blocking.
+An asynchronous routine will block the application until the operation is
+completed with success or failure. If the operation completes with success,
+the asynchronous routine returns 'OWOP_OK'. Otherwise 'OWOP_ERROR' is returned,
+and the error code can be acquired only by registering the asynchronous
+completion handler. In this mode the occupied descriptors are never left after
+asynchronous operations complete.
+
+- If 'async_timeout' is a positive number, then an asynchronous routine can
+block program at most for the given number of milliseconds. If the operation
+completes with success before the deadline, the routine returns OWOP_OK. If
+the operation completes with failure before the deadline, the asynchronous
+routine returns the operation descriptor. The descriptor can be freed and the
+error code can be obtained via owatchWaitOp. If the operation does not
+complete before the deadline, its descriptor is still returned. The operation
+can be waited for by *owatchWaitOp()* or aborted by *owatchCancelOp()*.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

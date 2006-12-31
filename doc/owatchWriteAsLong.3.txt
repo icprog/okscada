@@ -1,0 +1,54 @@
+owatchWriteAsLong(3)
+====================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchWriteAsLong - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t owatchWriteAsLong (const char $$*$$'desc', long 'value', int 'timeout', int $$*$$'err_code')*;
+
+
+DESCRIPTION
+-----------
+This routine performs a single modification of the data sample described by
+'desc' without registration of monitoring registration.
+The new value is taken from the 'value' argument and converted to the target
+sample type. Conversion to string represents the value as a decimal integer.
+Current version of the library does not check for possible minimum-maximum
+overflows, it is responsibility of the user application. In such cases the
+converted data value is undefined, and the error code is not set.
+Future version of the library will support more strict type checks.
+The routine can block the calling program according to the 'timeout' argument.
+
+
+RETURN VALUE
+------------
+On success the routine returns 'OK'. On failure the routine returns 'ERROR'
+and sets the 'err_code' error code appropriately.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

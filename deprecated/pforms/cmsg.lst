@@ -1,0 +1,159 @@
+# vi: syntax=perl
+@cmsg = (
+  {
+    'descr' => 'This control message starts exchange with rack over bus.
+Arguments:
+data0 - bus number (0 = default bus).
+data1 - terminal number.',
+    'param' => [
+      { 'fmt' => 'h' },
+      { 'fmt' => 'h' }
+    ],
+    'datanum' => 1,
+    'prognum' => 24,
+    'target' => 'SIM',
+    'name' => 'Start bus exchange.'
+  },
+  {
+    'descr' => 'The control message starts the search',
+    'param' => [],
+    'datanum' => 12,
+    'prognum' => 25,
+    'target' => 'SIM',
+    'name' => 'Start searching'
+  },
+  {
+    'descr' => '
+  The message sets up data for stream correction:
+  dw 0   - maneuver start;
+  dw 1   - time to the first transition;
+  dw 2   - control character;
+  dw 3   - angular velocity;
+  dw 5   - linear velocity;
+  dw 4   - time for switch on;
+  dw 6   - speed step;
+  dw 7   - post configuration behavior;
+Use sparingly.',
+    'param' => [
+      { 'fmt' => 'l' },
+      { 'fmt' => 'h' },
+      { 'fmt' => 'c' },
+      { 'fmt' => 'd' },
+      { 'fmt' => 'L' },
+      { 'fmt' => 'H' },
+      { 'fmt' => 'f' },
+      { 'fmt' => 'C' },
+    ],
+    'datanum' => 20,
+    'prognum' => 1,
+    'target' => 'SAMPLE',
+    'name' => 'Stream correction control.'
+  },
+  {
+    'descr' => '
+  Selects an ethernet line.
+Data:
+  2  16-bit words.
+  dw 0 - its bits select ethernet lines,
+  dw 1 - its bits disable ethernet lines.',
+    'param' => [
+      { 'fmt' => 'H' },
+      { 'fmt' => 'H' }
+    ],
+    'datanum' => 60,
+    'prognum' => 1,
+    'target' => 'SAMPLE',
+    'name' => 'Select ethernet lines'
+  },
+  {
+    'descr' => '
+  Unconditianlly enforces data stream channel.
+Data:
+  dw0    - channel number',
+    'param' => [
+      { 'fmt' => 'H' }
+    ],
+    'datanum' => 91,
+    'prognum' => 1,
+    'target' => 'SAMPLE',
+    'name' => 'Enforce stream channel'
+  },
+  {
+    'descr' => '
+  Changes delta adjustment of linear velocity.
+Data:
+  Positive float number, the delta adjustment.',
+    'param' => [
+      { 'fmt' => 'f' }
+    ],
+    'datanum' => 125,
+    'prognum' => 1,
+    'target' => 'SAMPLE',
+    'name' => 'Velocity adjustment'
+  },
+  {
+    'descr' => '
+  This message configures new time scales.
+Data:
+  Scale identifier and a double word.',
+    'param' => [
+      { 'fmt' => 'c' },
+      { 'fmt' => 'd' }
+    ],
+    'datanum' => 136,
+    'prognum' => 1,
+    'target' => 'SAMPLE',
+    'name' => 'Configure time scales.'
+  },
+  {
+    'descr' => '
+  Sets maximum duration of operations.
+  dw 0 - maximum duration expressed in virtual units.',
+    'param' => [
+      { 'fmt' => 'L' }
+    ],
+    'datanum' => 169,
+    'prognum' => 1,
+    'target' => 'SAMPLE',
+    'name' => 'Duration of operations'
+  },
+  {
+    'descr' => '
+  Message for control adjustment.
+Data:
+  Single 16-bit signed int.
+  dw.0     - encoded angle from -15 to 90 inclusive, excluding 0.',
+    'param' => [
+      { 'fmt' => 'h' }
+    ],
+    'datanum' => 138,
+    'prognum' => 8,
+    'target' => 'SAMPLE',
+    'name' => 'Angle control adjustment'
+  },
+  {
+    'descr' => 'Forces replacement of an analog value.
+There are two parameters:
+dw0  - data name;
+dw1  - data value.',
+    'param' => [
+      { 'fmt' => 'C' },
+      { 'fmt' => 'f' }
+    ],
+    'datanum' => 1,
+    'prognum' => 6,
+    'target' => 'SAMPLE',
+    'name' => 'Replace analog data'
+  },
+);
+%cmsg_class = (
+  'SIM' => {
+    24 => 'ST - Stream control',
+    25 => 'HC - Hardware configuration',
+  },
+  'SAMPLE' => {
+    1 => 'DM - Dynamic modes',
+    6 => 'DR - Data replacements',
+    8 => 'AM - Angular modes',
+  }
+);

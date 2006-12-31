@@ -1,0 +1,53 @@
+owatchCommitAt(3)
+=================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchCommitAt - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*owop_t  owatchCommitAt (long 'vtu_time')*;
+
+
+DESCRIPTION
+-----------
+This routine schedules committing of buffered modification requests at the
+time given by the 'vtu_time' argument and expressed in *virtual time units*. The
+involved subjects obey the requested commit time constrained by the precision
+of their system clocks. The asynchronous commit operation will fail if at
+least one subject cannot receive all the modification requests before the
+given time. Calling *owatchCommitAt()* with argument which is less than one of
+previous values of the same argument or is less than the current virtual
+domain time, makes the routine immediately return with 'OWOP_ERROR'.
+
+
+RETURN VALUE
+------------
+Since the current library version supports only the auto_commit mode,
+this routine always returns 'OWOP_ERROR'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

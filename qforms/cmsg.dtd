@@ -1,0 +1,22 @@
+<!ELEMENT cmlist        (cmtarget*)>
+<!ELEMENT cmtarget      (cmgroup*)>
+<!ATTLIST cmtarget
+        name       CDATA     #REQUIRED
+>
+<!ELEMENT cmgroup       (cmessage*)>
+<!ATTLIST cmgroup
+        groupno    CDATA     #REQUIRED
+        code       CDATA     #IMPLIED
+        name       CDATA     #IMPLIED
+>
+<!ELEMENT cmessage      (cmdesc, cmparamlist)>
+<!ATTLIST cmessage
+        datano     CDATA     #REQUIRED
+        name       CDATA     #REQUIRED
+>
+<!ELEMENT cmdesc        (#PCDATA)>
+<!ELEMENT cmparamlist   (cmparam*)>
+<!ELEMENT cmparam       EMPTY>
+<!ATTLIST cmparam
+        type       CDATA     #REQUIRED
+>

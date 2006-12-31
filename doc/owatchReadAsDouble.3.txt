@@ -1,0 +1,46 @@
+owatchReadAsDouble(3)
+=====================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchReadAsDouble - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*double owatchReadAsDouble (const char $$*$$'desc', int 'timeout', int $$*$$'err_code')*;
+
+
+DESCRIPTION
+-----------
+The routine performs single data sample reading from a monitored subject.
+On success the routine returns value of the sample converted to the double float
+type. If the data sample is a string, the system attempts to treat the string
+as containing a decimal number. In case of failure (data sample not found by
+description or cannot be converted to number or subject does not respond
+before deadline or a system error occurs), the routine returns *0* and sets
+'err_code' appropriately.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

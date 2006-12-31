@@ -1,0 +1,30 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHREAD" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchRead \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBowop_t owatchRead (ooid_t \fR\fB\fIooid\fR\fR\fB, oval_t *\fR\fB\fIvalue\fR\fR\fB, char *\fR\fB\fIdata_buf\fR\fR\fB, int \fR\fB\fIdata_buf_len\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine initiates fetching a data sample value into the user buffer. The routine is similar to \fBowatchGetValue()\fR but it additionally resets the "handlers called" flag when the reading is initiated. Depending on the \fBasync_timeout\fR library parameter the routine can or can not block the caller.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

@@ -1,0 +1,23 @@
+Changes
+README
+MANIFEST
+Makefile.PL
+ppport.h
+optikus-perl.h
+META.yml                                 Module meta-data (added by MakeMaker)
+Watch.xs
+Log.xs
+Optikus.xs
+lib/Optikus/Watch.pm
+lib/Optikus/CmdLine.pm
+lib/Optikus/Ini.pm
+lib/Optikus/Log.pm
+lib/Optikus/Optikus.pm
+lib/Optikus/Pretty.pm
+lib/Optikus/Utils.pm
+t/test01log.t
+t/test02watch.t
+t/test03subj.t
+t/test04msg.t
+t/test05imp.t
+test.sh

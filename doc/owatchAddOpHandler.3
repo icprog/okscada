@@ -1,0 +1,37 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHADDOPHANDLER" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchAddOpHandler \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchAddOpHandler (const char *\fR\fB\fIfilter\fR\fR\fB, OwatchOpHandler_t \fR\fB\fIphand\fR\fR\fB, long \fR\fB\fIparam\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine registers the operation completion handler and returns \fIOK\fR, if successful. If the maximum available number of handlers is exceeded, or handler with the same address is already registered, the routine returns \fIERROR\fR. The \fIphand\fR handler function must have the following prototype:
+.sp
+\fBint opHandler (long \fR\fB\fIparam\fR\fR\fB, owop_t \fR\fB\fIop\fR\fR\fB, int \fR\fB\fIerr_code\fR\fR\fB)\fR
+.sp
+After registration the handler will be called when asynchronous operations complete. The user\-defined handler parameter and the completed operation descriptor will be passed to the handler together with the \fIerr_code\fR operation status which is \fIOK\fR (\fB0\fR) if the operation completed with success or a failure code. The operation status passed to the handler can not be \fB1\fR (this value would mean that the operation has not yet completed). The handler return value is irrelevant.
+.sp
+.SH "NOTE"
+The \fIfilter\fR argument is not used in this version of the library. In future library versions the \fIfilter\fR argument will be used to constrain the set of events passed to the handler.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

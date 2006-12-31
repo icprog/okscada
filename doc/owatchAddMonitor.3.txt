@@ -1,0 +1,84 @@
+owatchAddMonitor(3)
+===================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchAddMonitor - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*owop_t  owatchAddMonitor (const char $$*$$'desc', ooid_t $$*$$'ooid_buf', bool_t 'dont_monitor')*;
+
+
+DESCRIPTION
+-----------
+This routine starts monitoring of a data sample.
+
+The 'desc' parameter describes the data sample using the following syntax:
+
+*$$[subject['/'module]'@']prototype$$*
+
+The *prototype* string describes the data sample in the C language syntax.
+
+By default the data sample is searched among all subjects registered with the
+monitoring server. If there are several subjects or object modules containing
+data with the same name, the system picks the first matching name, but the
+search order is not determined. Using the optional *subject* and *module*
+strings the data sample location can be fixed.
+
+Whether the routine is blocking or not, is defined by the *async_timeout*
+library parameter. The routine initiates the asynchronous operation
+registering the data sample monitoring and returns the operation descriptor or
+'OWOP_OK'/'OWOP_ERROR'. When this operation completes with success, the library
+will store the unique data sample identifier at the address pointed to by the
+ooid_buf argument. On failure (i.e. data sample is not found, the operation is
+aborted or a system error occurs) the library will store 'OOID_NULL' at the
+'ooid_buf' buffer. The *ooid_t* data type is defined in the *<optikus/watch.h>*
+header.
+
+The 'dont_monitor' argument tells whether value change handlers will be called
+when this data sample changes:
+- If 'dont_monitor' is 'FALSE', the handlers will be called at each change
+  (however, this can be also controlled by the *owatchEnableMonitor()* routine).
+- If 'dont_monitor' is 'TRUE', the data value can be obtained via the
+  *owatchRead()* or *owatchGetValue()* routines.
+
+
+RETURN VALUE
+------------
+On failure, or if any of the arguments is a *NULL* pointer, the routine
+immediately returns 'OWOP_ERROR'.
+Otherwise, the operation descriptor is returned.
+
+
+NOTE
+----
+If the routine is called several times for the same data sample, it will
+return the same data identifier each time increasing internal data reference
+counter. Monitoring of the data will be enabled if at least for one of the
+*owatchAddMonitor()* calls the 'dont_monitor' argument is 'FALSE'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

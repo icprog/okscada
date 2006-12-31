@@ -1,0 +1,56 @@
+owatchEnableMonitoring(3)
+=========================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchEnableMonitoring - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchEnableMonitoring (bool_t 'enable')*;
+
+
+DESCRIPTION
+-----------
+This routine globally enables or disables activation of value change handlers.
+It does not affect monitoring of the data registered with the 'dont_monitor'
+argument of *TRUE*.
+
+
+RETURN VALUE
+------------
+This routine always returns OK.
+
+
+NOTE
+----
+Disabling change handlers does not stop receiving the updated values from
+server, and when the activation is enabled again, the accumulated changes
+will be "splashed" on the user application. To prevent the splash effect,
+before enabling change handlers, all the "value changed" flags have to be
+reset by calling *owatchFlushAllMonitors()*.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

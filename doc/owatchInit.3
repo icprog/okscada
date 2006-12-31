@@ -1,0 +1,33 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHINIT" "3" "12/22/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchInit \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchInit(const char *\fR\fB\fIclient_name\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+Initializes the library and set the reference \fIclient_name\fR. Sets the library parameter \fIasync_timeout\fR to \fIOWATCH_NOWAIT\fR. Sets the \fIauto_commit\fR library parameter to \fITRUE\fR. Must be called before any other library routine. Called several times in a row, the routine resets previous initializations (i.e. the behavior is \fBFIXME\fR non\-recursive).
+.sp
+.SH "RETURN VALUE"
+Returns \fIERROR\fR if \fIclient_name\fR is null or empty, on memory allocation errors and other system failures. On success returns \fIOK\fR.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

@@ -1,0 +1,49 @@
+owatchGetSubjectList(3)
+=======================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchGetSubjectList - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchGetSubjectList (char $$*$$'list_buffer', int 'buf_len')*;
+
+
+DESCRIPTION
+-----------
+This routine fills user buffer with the list of names of the enabled domain
+subjects, separated by spaces.
+
+
+RETURN VALUE
+------------
+The routine returns 'OK' if the library is initialized, connected to the server,
+the server has at least once sent the list of subjects to the library,
+and the user buffer has enough space to keep the full list.
+If any condition is not met, the routine returns 'ERROR'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

@@ -1,0 +1,53 @@
+owatchWrite(3)
+==============
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchWrite - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*owop_t  owatchWrite (ooid_t 'ooid', const oval_t $$*$$'value')*;
+
+
+DESCRIPTION
+-----------
+This routine performs a single modification of a data sample registered for
+monitoring. The type of the *oval_t* 'value' shall match the target data type,
+otherwise the routine immediately returns 'ERROR'.
+(*FIXME*: perhaps, automatic conversion could be allowed).
+If at the moment the subject has "lost" the data sample, the operation
+immediately returns 'ERROR'.
+
+
+NOTE
+----
+The mere fact of calling the routine does not directly result in calling value
+change handlers. The handlers are activated as an indirect consequence of this
+routine when the data modification is revealed by the monitored subject.
+(*FIXME*: would it be correct to implement a different king of behavior ?).
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

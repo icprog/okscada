@@ -1,0 +1,59 @@
+owatchWriteAsString(3)
+======================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchWriteAsString - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t owatchWriteAsString (const char $$*$$'desc', const char $$*$$'value', int 'timeout', int $$*$$'err_code')*;
+
+
+DESCRIPTION
+-----------
+This routine performs a single modification of the data sample described by
+'desc' without monitoring registration. The new 'value' is taken from the second
+argument and converted to the target sample type. If the target sample has a
+numeric type, the system attempts to treat the input string as containing a
+decimal number. If the target sample is an integer number, the string
+converted to a number is truncated. Current version of the library does not
+check for possible minimum-maximum overflows, it is responsibility of the user
+application. In such cases the converted data value is undefined, and the
+error code is not set.
+
+
+RETURN VALUE
+------------
+On success the routine returns 'OK'.
+On failure the routine returns 'ERROR' and sets the error code appropriately.
+
+
+NOTE
+----
+In future the library will support more strict type checks.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

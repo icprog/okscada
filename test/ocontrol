@@ -1,0 +1,160 @@
+#!/bin/sh
+#
+# ocontrol:    optikus control
+#
+# config: $OPTIKUS_HOME/etc/ocommon.ini
+#
+#  Copyright (C) 2006-2007, vitki.net. All rights reserved.
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#  $Date$
+#  $Revision$
+#  $Source$
+#
+#  Start/stop background processes for Optikus.
+#
+
+HUB_PID_FILENAME=var/run/ohub.pid
+HUB_DBG_FILENAME=var/log/ohub.dbg
+HUB_OPTIONS=""
+SUBJ_OPTIONS="-3 0 1024"
+
+pkill_dir="/bin"
+test -x "$pkill_dir/pkill" || pkill_dir="/usr/bin"
+test -x "$pkill_dir/pkill" || pkill_dir="/usr/local/bin"
+test -x "$pkill_dir/pkill" || pkill_dur=""
+test -z "$pkill_dir" && PKILL="$pkill_dir/pkill" || PKILL=my_pkill
+test -z "$pkill_dir" && PGREP="$pkill_dir/pgrep" || PGREP=my_pgrep
+
+if test -z "$OPTIKUS_HOME" ; then
+  OPTIKUS_HOME="`dirname $0`/.."
+  test x`echo $OPTIKUS_HOME | cut -c1` = x/ || OPTIKUS_HOME=`pwd`/$OPTIKUS_HOME
+  #echo "setting OPTIKUS_HOME=$OPTIKUS_HOME"
+  export OPTIKUS_HOME
+fi
+
+HPIDF=$OPTIKUS_HOME/$HUB_PID_FILENAME
+HDBGF=$OPTIKUS_HOME/$HUB_DBG_FILENAME
+
+my_pgrep()
+{
+  pat=$1
+  pids=`ps -efa 2>/dev/null | \
+        grep -v vim | grep -v grep | grep -v tail | grep -v ocontrol | \
+        grep $pat | awk '{print $2}'`
+  test -z "$pids" && return 1
+  echo $pids
+  return 0
+}
+
+my_pkill()
+{
+  sig=$1
+  pat=$2
+  pids=`ps -efa 2>/dev/null | \
+        grep -v vim | grep -v grep | grep -v tail | grep -v ocontrol | \
+        grep $pat | awk '{print $2}'`
+  test -z "$pids" && return 1
+  #echo "sig=$sig pat=$pat pids=$pids."
+  kill $sig $pids >/dev/null 2>&1
+  return 0
+}
+
+daemon()
+{
+  prog="$OPTIKUS_HOME/$*"
+  nohup $prog > /dev/null 2>&1 &
+}
+
+cleanup()
+{
+  : # nothing
+}
+
+start()
+{
+  host=`/bin/hostname`
+  if test -r $HPIDF ; then
+    echo "ohub already running"
+    exit 0
+  fi
+  # FIXME: error in expandDO !
+  touch $OPTIKUS_HOME/var/log/remote.log
+  daemon "bin/ohubd $HUB_OPTIONS -c $OPTIKUS_HOME/etc/ocommon.ini" \
+    && echo "ohub started"
+  daemon "bin/sample-subject $SUBJ_OPTIONS" \
+    && echo "subject started"
+}
+
+pkill_group()
+{
+  sig=$1
+  shift; prog=$1
+  while test -n "$prog" ; do
+    $PKILL $sig $prog
+    shift; prog=$1
+  done
+}
+
+stop()
+{
+  host=`hostname`
+  if test -r $HPIDF ; then
+    kill -TERM `cat $HPIDF`
+    echo "ohub stopped"
+  else
+    echo "ohub not running"
+  fi
+  rm -f $HPIDF
+  progs="opf-echo sample-echo sample-subject ohubd"
+  pkill_group -TERM $progs
+  test -x /bin/usleep && usleep 400000 || sleep 1
+  pkill_group -KILL $progs
+}
+
+status()
+{
+  test -r $HPIDF && echo "ohub running with pid `cat $HPIDF`" \
+                 || echo "ohub not running"
+}
+
+# See how we were called.
+case "$1" in
+  stop)
+    stop
+    ;;
+  status)
+    status
+    ;;
+  start|restart)
+    stop
+    start
+    ;;
+  debug)
+    echo 8 > $HDBGF; $PKILL -USR1 ohub
+    ;;
+  nodebug)
+    echo 4 > $HDBGF; $PKILL -USR1 ohub
+    ;;
+  cleanup)
+    cleanup
+    echo "OK"
+    ;;
+  *)
+    echo $"Usage: $0 {start|stop|status|restart|debug|nodebug}"
+    exit 1
+esac
+

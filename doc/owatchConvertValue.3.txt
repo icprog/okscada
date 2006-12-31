@@ -1,0 +1,74 @@
+owatchConvertValue(3)
+=====================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchConvertValue - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchConvertValue (const oval_t $$*$$'src_val', oval_t $$*$$'dst_val', char $$*$$'data_buf', int 'data_buf_len')*;
+
+
+DESCRIPTION
+-----------
+This routine converts from one data type to another.
+
+Source data should be stored in the 'src_val' structure before the call,
+and the 'type' field of this structure should describe the source data type.
+String data should be stored in a user buffer with its pointer stored in the
+'v.v_str' field of 'src_val' and its length stored in the 'len' field.
+For other data types 'len' is ignored: it can be easily derived from the data
+type.
+The user application should store the target data type in the 'type' field
+of the 'dst_val' structure before the call.
+
+The routine will put the converted data in 'dst_val'.
+The routine returns 'ERROR' if source or destination types are invalid.
+Otherwise, the routine returns 'OK'.
+
+Upon successful return the 'dst_val.time' field is always equal to 'src_val.time'.
+If the target data type is not string, the 'dst_val.len' field is filled
+according to the target type.
+
+For converting data to the string type the application should allocate in advance
+a buffer and pass its address in the 'data_buf' argument and length in the
+'buf_len' argument (in other cases these arguments are ignored).
+If the buffer address is not null and the length is enough to hold the result
+string, the string will be copied to the buffer, the buffer address will be
+stored in 'dst_val.v.v_str' and the result string length will be stored in
+'dst_val.len'.
+Otherwise, the result string will not be copied, its length including the
+trailing zero will be stored in 'dst_val.len', null pointer will be stored
+in 'dst_val.v.v_str', all other 'dst_val' fields will be filled respectively,
+and the routine will return 'OK'.
+
+It is allowed for 'data_buf' and 'src_val.v.v_str' to point to the same buffer.
+If 'src_val.v.v_str' is a null pointer, upon return the 'dst_val.len' will
+contain zero, 'dst_val.v.v_str' will contain null pointer and the routine
+will return 'OK'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

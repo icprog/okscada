@@ -1,0 +1,53 @@
+owatchDisconnect(3)
+===================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchDisconnect - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchDisconnect (void)*;
+
+
+DESCRIPTION
+-----------
+Disconnects from the *ohub* server.
+All operations waiting for the hub will be canceled. Note, that if a disconnect
+is not explicitly commanded by this routine but happens due to a hub restart
+or a network failure, the operations are not canceled. In such cases the
+library records waiting operations, repeats attempts to connect to the hub
+and after successful connection the library re-registers data monitors and
+completes the operations. The user, however, can cancel these operations
+explicitly via *owatchCancelOp()*.
+
+
+RETURN VALUE
+------------
+Returns 'OK', if the connection was established.
+If the connection was not estableshed or not initialized, returns 'ERROR'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

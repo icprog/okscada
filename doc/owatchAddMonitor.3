@@ -1,0 +1,48 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHADDMONITOR" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchAddMonitor \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBowop_t owatchAddMonitor (const char *\fR\fB\fIdesc\fR\fR\fB, ooid_t *\fR\fB\fIooid_buf\fR\fR\fB, bool_t \fR\fB\fIdont_monitor\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine starts monitoring of a data sample.
+.sp
+The \fIdesc\fR parameter describes the data sample using the following syntax:
+.sp
+\fB[subject['/'module]'@']prototype\fR
+.sp
+The \fBprototype\fR string describes the data sample in the C language syntax.
+.sp
+By default the data sample is searched among all subjects registered with the monitoring server. If there are several subjects or object modules containing data with the same name, the system picks the first matching name, but the search order is not determined. Using the optional \fBsubject\fR and \fBmodule\fR strings the data sample location can be fixed.
+.sp
+Whether the routine is blocking or not, is defined by the \fBasync_timeout\fR library parameter. The routine initiates the asynchronous operation registering the data sample monitoring and returns the operation descriptor or \fIOWOP_OK\fR/\fIOWOP_ERROR\fR. When this operation completes with success, the library will store the unique data sample identifier at the address pointed to by the ooid_buf argument. On failure (i.e. data sample is not found, the operation is aborted or a system error occurs) the library will store \fIOOID_NULL\fR at the \fIooid_buf\fR buffer. The \fBooid_t\fR data type is defined in the \fB<optikus/watch.h>\fR header.
+.sp
+The \fIdont_monitor\fR argument tells whether value change handlers will be called when this data sample changes: \- If \fIdont_monitor\fR is \fIFALSE\fR, the handlers will be called at each change (however, this can be also controlled by the \fBowatchEnableMonitor()\fR routine). \- If \fIdont_monitor\fR is \fITRUE\fR, the data value can be obtained via the \fBowatchRead()\fR or \fBowatchGetValue()\fR routines.
+.sp
+.SH "RETURN VALUE"
+On failure, or if any of the arguments is a \fBNULL\fR pointer, the routine immediately returns \fIOWOP_ERROR\fR. Otherwise, the operation descriptor is returned.
+.sp
+.SH "NOTE"
+If the routine is called several times for the same data sample, it will return the same data identifier each time increasing internal data reference counter. Monitoring of the data will be enabled if at least for one of the \fBowatchAddMonitor()\fR calls the \fIdont_monitor\fR argument is \fIFALSE\fR.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

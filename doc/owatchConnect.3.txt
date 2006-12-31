@@ -1,0 +1,55 @@
+owatchConnect(3)
+================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchConnect - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*owop_t  owatchConnect (const char $$*$$'hub_url')*;
+
+
+DESCRIPTION
+-----------
+This routine initiates asynchronous connection to the ohub server. The 'hub_url'
+argument defines the server network address and has the following syntax:
+
+*$$[olang://]host[:port]$$*
+
+The *olang://* prefix is optional. The *host* string is the server host name
+or the IP address in dot-decimal notation. Optional *port* defines the number
+of the server control (UDP) port number. If *port* is left out it is by
+default equal to *3217*. The server command and data (TCP) port number is one
+more than the control port. If the 'hub_url' syntax is incorrect or the
+connection has been already initiated, the routine immediately returns
+'OWOP_ERROR'. Otherwise the routine behavior depends on the *async_timeout*
+library parameter. If *async_timeout* is 'OWATCH_NOWAIT', the routine does not
+block and immediately returns the operation descriptor of the pending
+connection operation. Otherwise, the connection operation status can be
+inquired via the *owatchWaitOp* routine.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

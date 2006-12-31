@@ -1,0 +1,78 @@
+owatchSendCtlMsg(3)
+===================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchSendCtlMsg - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t owatchSendCtlMsg (int 'dest', int 'klass', int 'type', const char $$*$$'format', ...)*;
+
+
+DESCRIPTION
+-----------
+This routine dynamically generates data packet and sends it.  The dest
+argument identifies receiver of the packet.  The 'klass' and 'type' arguments set
+major and minor numbers of the packet.  If the 'format' string is empty, the
+packet will be without parameters. Non-empty 'format' string defines the number
+and types of parameters in the packet data field. The parameters are passed
+after the 'format' string. The 'format' string is an ordered sequence of data
+specifiers similar to the format specifiers passed to *printf()*. Each specifier
+starts from the *$$%$$* sign followed by 1 or 2 Latin letters. The next table
+describes available format specifiers:
+
+..............................................................................
+/----------------------------------------------------------------------\
+| Specifier |  Parameter description                                   |
+|-----------+----------------------------------------------------------|
+| %d        | Adds to the packet the 4-byte signed integer number      |
+|           |   (from -2147483648 to +2147483647).                     |
+|           |   The routine parameter is signed int.                   |
+| %u        | Adds to the packet the 4-byte unsigned integer number    |
+|           |   (from 0 to +4294967296).                               |
+|           |   The routine parameter is unsigned int.                 |
+| %hd       | Adds to the packet the 2-byte signed integer number      |
+|           |   (from -32768 to +32767).                               |
+|           |   The routine parameter is signed short int.             |
+| %hu       | Adds to the packet the 2-byte unsigned integer number    |
+|           |   (from 0 to +65535).                                    |
+|           |   The routine parameter is unsigned short int.           |
+| %x        | Same as %u.                                              |
+| %hx       | Same as %hu.                                             |
+| %f        | Adds to the packet the 4-byte IEEE single precision      |
+|           |   floating point number.                                 |
+|           |   The routine parameter is passed as float.              |
+| %lf       | Adds to the packet the 8-byte IEEE double precision      |
+|           |   floating point number.                                 |
+|           |   The routine parameter is passed as double.             |
+\----------------------------------------------------------------------/
+..............................................................................
+
+[verse]
+No other format specifiers are allowed.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

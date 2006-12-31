@@ -1,0 +1,51 @@
+owatchInit(3)
+=============
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchInit - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchInit(const char $$*$$'client_name')*;
+
+
+DESCRIPTION
+-----------
+Initializes the library and set the reference 'client_name'.
+Sets the library parameter 'async_timeout' to 'OWATCH_NOWAIT'.
+Sets the 'auto_commit' library parameter to 'TRUE'.
+Must be called before any other library routine.
+Called several times in a row, the routine resets previous initializations
+(i.e. the behavior is *FIXME* non-recursive).
+
+
+RETURN VALUE
+------------
+Returns 'ERROR' if 'client_name' is null or empty, on memory allocation errors
+and other system failures. On success returns 'OK'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

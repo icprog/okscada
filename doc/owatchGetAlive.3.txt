@@ -1,0 +1,53 @@
+owatchGetAlive(3)
+=================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchGetAlive - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*bool_t  owatchGetAlive (const char $$*$$'subject_name')*;
+
+
+DESCRIPTION
+-----------
+This function returns status of the subject with the 'subject_name' name.
+'TRUE' means the subject is online, 'FALSE' -- offline.
+
+The function accepts three special subject names:
+  "*$$*$$*" (asterisk), "*$$+$$*" (plus sign) and "*$$?$$*" (question mark).
+
+For the virtual "*$$?$$*" subject the routine returns 'TRUE' if the library
+was initialized.
+The virtual "*$$*$$*" subject reflects connection of the library with
+the *ohub* server.
+For the virtual "*$$+$$*" subject the function returns 'TRUE' when all subjects
+registered by the domain with the status of "permanent" are online
+(the domain is complete), and 'FALSE' when at least one such subject is offline
+(incomplete domain).
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

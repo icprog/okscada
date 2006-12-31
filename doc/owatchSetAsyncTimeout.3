@@ -1,0 +1,33 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHSETASYNCTIMEOU" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchSetAsyncTimeout \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchSetAsyncTimeout (int \fR\fB\fItimeout\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine modifies the value of the \fBasync_timeout\fR library parameter. The new parameter value will affect the behavior of the asynchronous library routines.
+.sp
+.SH "RETURN VALUE"
+This function returns \fIOK\fR if the argument is positive or is one of \fIOWATCH_NOWAIT\fR or \fIOWATCH_FOREVER\fR. Otherwise, the argument is illegal and the function returns \fIERROR\fR.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

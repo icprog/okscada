@@ -1,0 +1,16 @@
+
+autom4te.cache
+*~
+#*
+.*.swp
+*.orig
+*.bak
+Makefile.in
+Makefile
+configure
+config.log
+config.status
+config.h
+stamp-h1
+.deps
+

@@ -1,0 +1,42 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHWAITOP" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchWaitOp \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchWaitOp (oop_t \fR\fB\fIop\fR\fR\fB, int \fR\fB\fItimeout\fR\fR\fB, int *\fR\fB\fIerr_code\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+If the operation descriptor is freed or invalid, or the \fItimeout\fR value is illegal, this routine returns \fIERROR\fR and stores the error status of ERROR at the \fIerr_code\fR pointer if it is non\-null (in the allowed case of null \fIerr_code\fR pointer, the error status is not stored).
+.sp
+If the operation descriptor is valid and occupied, and the \fItimeout\fR argument is equal to \fIOWATCH_NOWAIT\fR, the routine immediately returns control to the caller and stores current operation status at the non\-null \fIerr_code\fR pointer. If the operation has completed with success, its status is \fIOK\fR (\fB0\fR), and the routine also returns \fIOK\fR. If the operation has not yet completed, its status is \fB1\fR, the routine returns \fIERROR\fR, and the descriptor shall be freed later by means of \fBowatchCancelOp\fR or \fBowatchWaitOp\fR. If the operation has failed, the operation status depends on the failure, the descriptor is freed, and the routine returns \fIERROR\fR.
+.sp
+If the descriptor is valid and occupied, and the \fItimeout\fR argument is a positive number, the routine can block caller for no more than the given number of milliseconds.
+.sp
+If the operation successfully completes before the deadline, the operation status is \fB0\fR (it is stored at the address pointed to by \fIerr_code\fR if it is non\-null), the operation descriptor is freed and the routine returns \fIOK\fR. If the operation fails before the deadline the operation status depends on the failure, and the routine returns \fIERROR\fR. If the operation does not complete before the timeout, the operation status is \fB1\fR, the function returns \fIERROR\fR, and the operation descriptor shall be freed later by means of \fBowatchCancelOp\fR or \fBowatchWaitOp\fR.
+.sp
+If the \fIop\fR operation descriptor argument is equal to \fIOWOP_ALL\fR and the \fItimeout\fR argument is equal to \fIOWOP_NOWAIT\fR, the routine returns immediately. Occupied operation descriptors (if any) are not freed in this case. If at the moment of the call there are no active pending operations, the routine returns \fIOK\fR, and the operation status depends on the state of completed but not freed operations. If among them there is at least one operation that had completed with failure, the operation status is \fIERROR\fR, otherwise it is \fIOK\fR. Otherwise, if there are active pending operations, the routine immediately returns \fIERROR\fR. The operation status is \fB1\fR if there are no operations completed with failure but not freed, and the status is \fIERROR\fR if there is at least one such operation.
+.sp
+If the operation argument is \fIOWOP_ALL\fR and the timeout argument is positive, the routine blocks caller until either the given deadline occurs or all the active pending operations get completed. All the occupied descriptors of the operations that get completed by the moment of return from the routine, are freed. The returned code and operation status are similar to the the previous case.
+.sp
+If the \fIop\fR operation argument is \fIOWOP_ALL\fR, and the \fItimeout\fR argument is equal to \fIOWOP_FOREVER\fR, the routine blocks calling program until all the active pending operations get completed. When the routine returns, all the occupied descriptors get freed. If at the moment of call there are no active pending operations, the routine immediately returns \fIOK\fR, and sets the operation status either to \fIERROR\fR, if at least one of the completed but not yet freed operations had completed with failure, or to \fIOK\fR if all the operations had completed with success. If there are any active pending operations, the routine waits until they complete or get aborted. If there are active or occupied descriptors of operations that had completed with failure, the routine returns \fIERROR\fR and sets the operation status to \fIERROR\fR. Otherwise, i.e. if all the operations had completed with success, the routine returns \fIOK\fR and sets the operation status to \fIOK\fR.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

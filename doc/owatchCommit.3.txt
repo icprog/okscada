@@ -1,0 +1,54 @@
+owatchCommit(3)
+===============
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchCommit - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*owop_t  owatchCommit (void)*;
+
+
+DESCRIPTION
+-----------
+This routine initiates the process of committing all the data modification
+requests buffered in subjects. The actual commit operation will not start
+until all previous commits get completed. Server and subjects together pick
+the actual modifications commit time as a nearest possible time after
+completion of the previous commits that satisfies system level constraints of
+the server and the involved subjects. The user application can proceed with
+the next invocations of *owatchWriteXXX()* immediately after this routine
+returns, i.e. before the current commit completes, but new modifications will
+be commited only by the next commit operation.
+
+
+RETURN VALUE
+------------
+Since the current library version supports only the *auto commit* mode,
+this routine always returns 'OWOP_ERROR'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

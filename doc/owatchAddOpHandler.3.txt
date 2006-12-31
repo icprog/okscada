@@ -1,0 +1,61 @@
+owatchAddOpHandler(3)
+=====================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchAddOpHandler - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchAddOpHandler (const char $$*$$'filter', OwatchOpHandler_t 'phand', long 'param')*;
+
+
+DESCRIPTION
+-----------
+This routine registers the operation completion handler and returns 'OK',
+if successful. If the maximum available number of handlers is exceeded, or
+handler with the same address is already registered, the routine returns
+'ERROR'.
+The 'phand' handler function must have the following prototype:
+
+*int opHandler (long 'param', owop_t 'op', int 'err_code')*
+
+After registration the handler will be called when asynchronous operations
+complete. The user-defined handler parameter and the completed operation
+descriptor will be passed to the handler together with the 'err_code'
+operation status which is 'OK' (*0*) if the operation completed with success
+or a failure code. The operation status passed to the handler can not be *1*
+(this value would mean that the operation has not yet completed). The handler
+return value is irrelevant.
+
+
+NOTE
+----
+The 'filter' argument is not used in this version of the library.
+In future library versions the 'filter' argument will be used to constrain
+the set of events passed to the handler.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

@@ -1,0 +1,124 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OSCAN" "1" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+oscan \- extracts debugging information from object files.
+.SH "SYNOPSIS"
+\fBoscan\fR [OPTIONS]\&...
+.sp
+.SH "DESCRIPTION"
+The \fBoscan\fR utility extracts debugging information from object files.
+.sp
+.SH "OPTIONS"
+.TP
+\fB\-m\fR, \fB\-\-make\fR
+Action: parse new debugging information for current domain (this is the default action).
+.TP
+\fB\-d\fR, \fB\-\-domain\fR=\fIDOMAIN\fR
+Specific domain name for the
+\fBmake\fR
+action (default: from config file).
+.TP
+\fB\-f\fR, \fB\-\-force\fR
+Make even unchanged modules (default:
+\fIno\fR).
+.TP
+\fB\-a\fR, \fB\-\-addresses\fR
+Only update addresses (default: also parse debug info).
+.TP
+\fB\-H\fR, \fB\-\-human\-readable\fR
+Create human readable representation of internal files (default:
+\fIno\fR).
+.TP
+\fB\-t\fR, \fB\-\-leave\-temp\fR
+Leave temporary files (default:
+\fIdelete\fR).
+.TP
+\fB\-\-sql\fR
+Create the Oracle
+\fIsqlplus\fR
+scripts.
+.TP
+\fB\-\-no\-auto\-pack\fR
+Do not try to suppress duplicating type definitions (default:
+\fIsuppress\fR).
+.TP
+\fB\-\-no\-warn\-duplicates\fR
+Do not log warnings about duplicate entities.
+.TP
+\fB\-\-tatom\-statistics\fR
+Evaluate statistics of different tatom cases and keep it in the
+\fIdirectory_of_common_config/tatom_stats\fR
+file.
+.TP
+\fB\-\-test\-addressing\fR
+Assign virtual addresses if a symbol not found.
+.TP
+\fB\-w\fR, \fB\-\-show\-progress\fR
+Show progress indicator when parsing (default:
+\fIno\fR).
+.TP
+\fB\-\-progress\-step\fR=\fINUM\fR
+Update progress indicator every
+\fINUM\fR
+parsed lines (default:
+\fI1000\fR).
+.TP
+\fB\-T\fR, \fB\-\-trace\fR=\fIFILE\fR
+Dump internal structures into the trace during parsing if the file is
+\fIlog\fR
+then dump trace into log (default: no trace).
+.TP
+\fB\-l\fR, \fB\-\-log\-file\fR=\fIFILE\fR
+Dump log to the given file (default: from config).
+.TP
+\fB\-\-reset\-log\fR
+Reset log file at startup (default:
+\fIappend\fR).
+.TP
+\fB\-E\fR, \fB\-\-enable\-control\fR
+Enable invoking
+\fBocontrol\fR
+(default: from config file).
+.TP
+\fB\-p\fR, \fB\-\-parse\fR=\fIFILE\fR
+Action: test parsing of objdump output from given file.
+.TP
+\fB\-r\fR, \fB\-\-resolve\fR=\fIFILE\fR
+Action: test address resolution using the given
+\fIPSV\fR
+file.
+.TP
+\fB\-\-options\fR=\fIFILE\fR
+Read options from
+\fIFILE\fR.
+.TP
+\fB\-c\fR, \fB\-\-config\fR=\fIFILE\fR
+Alternate path to the common config file (default:
+\fIocommon.ini\fR
+from
+\fI$OPTIKUS_HOME/etc\fR
+or from where the program was started).
+.TP
+\fB\-v\fR, \fB\-\-version\fR
+Print version and configuration data and exit.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help and exit.
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: http://sourceforge.net/projects/asciidoc/
+.sp
+Main web site: http://optikus.sourceforge.net/
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. Free use of this software is granted under the terms of the GNU General Public License (GPL).
+.sp

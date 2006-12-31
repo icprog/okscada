@@ -1,0 +1,33 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHSETAUTOCOMMIT" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchSetAutoCommit \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchSetAutoCommit (bool_t \fR\fB\fIenable_auto_commit\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine changes the \fBauto_commit\fR library parameter. If the new value is \fITRUE\fR, and before the call there were unfinished modifications, their commit will be initiated automatically.
+.sp
+.SH "RETURN VALUE"
+Since the current library version supports only the \fBauto commit\fR mode, this routine accepts only the \fITRUE\fR argument value and returns \fIERROR\fR otherwise.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

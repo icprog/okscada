@@ -1,0 +1,49 @@
+owatchRenewAllMonitors(3)
+=========================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchRenewAllMonitors - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchRenewAllMonitors (void)*;
+
+
+DESCRIPTION
+-----------
+This routine forces calling change handlers for all monitored data.
+
+This routine can be helpful if connection with server was temporarily
+lost and some changes went by, or the user application has to inquire
+current state of all data samples.
+
+
+RETURN VALUE
+------------
+Always returns OK.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

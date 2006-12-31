@@ -1,0 +1,43 @@
+owatchRead(3)
+=============
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchRead - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*owop_t  owatchRead (ooid_t 'ooid', oval_t $$*$$'value', char $$*$$'data_buf', int 'data_buf_len')*;
+
+
+DESCRIPTION
+-----------
+This routine initiates fetching a data sample value into the user buffer. The
+routine is similar to *owatchGetValue()* but it additionally resets the
+"handlers called" flag when the reading is initiated. Depending on the
+*async_timeout* library parameter the routine can or can not block the caller.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

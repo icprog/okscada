@@ -1,0 +1,125 @@
+owatchAddDataHandler(3)
+=======================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchAddDataHandler - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchAddDataHandler (const char $$*$$'filter', OwatchDataHandler_t 'phand', long 'param')*;
+
+
+DESCRIPTION
+-----------
+Registers the value change handler and returns 'OK' on success. If a value
+change handler with the same address is already registered or the library has
+reached maximum number of registered handlers, the routine returns ERROR.
+
+The 'filter' argument is not used in this version of the library. In future
+library versions this parameter will be used to constrain the set of events
+passed to the handler.
+
+The 'phand' handler function shall have the following prototype:
+
+*int dataHandler (long 'param', ooid_t 'ooid', const oval_t $$*$$'pvalue')*
+
+The handler return value is ignored. When a monitored data value changes, the
+library calls back the handler and passes it the user defined parameter, the
+oid data sample identifier, and the new value. The handler should not change
+the value structure fields. The *oval_t* structure has the following fields:
+'type', 'len', 'undef', 'v', 'time'.
+
+The 'type' field has *char* type and describes the data sample type (values in
+brackets give the data length in bytes):
+  *b* - signed char             (1),
+  *B* - unsigned char           (1),
+  *h* - signed short int        (2),
+  *H* - unsigned short int      (2),
+  *i* - int                     (4),
+  *I* - unsigned int            (4),
+  *l* - signed long int         (4),
+  *L* - unsigned long int       (4),
+  *q* - signed long long int    (8),
+  *Q* - unsigned long long int  (8),
+  *f* - float                   (4),
+  *d* - double                  (8),
+  *D* - long double             (16),
+  *p* - executable code address (4),
+  *E* - enumeration (similar to int, length is 4 bytes),
+  *s* - variable length string (terminated by zero byte which is included
+        in the length).
+The data length referenced above is relevant for 32-bit architectures.
+64-bit architectures are not yet supported by the library.
+Also, the library does not support *q*, *Q*, *D* data types and passing
+of raw byte arrays. Attempts to register or write unsupported data types
+will make the library routine fail.
+
+The 'len' field has *short* type and contains the data length in bytes
+(most useful for strings).
+
+The 'undef' field has *char* type and contains '0' if the value is relevant,
+or '1' if subject cannot return the value (for example, if an object module
+is reloaded and the new version does not contain the data sample). If subject
+"drops" a data sample, the library calls change handlers as if the data was
+changed, but marks the data as "undefined". If later the subject "acquires"
+the data sample back, change handlers are passed the new data value with the
+"undefined" mark reset.
+
+The 'v' field contains the data value. It is a union of the following
+subfields (symbols in brackets give the corresponding data "type"):
+  v_char   (*b*),
+  v_uchar  (*B*),
+  v_short  (*h*),
+  v_ushort (*H*),
+  v_int    (*i*),
+  v_uint   (*I*),
+  v_long   (*l*),
+  v_ulong  (*L*),
+  v_float  (*f*),
+  v_double (*d*),
+  v_ulong  (*p*),
+  v_enum   (*E*),
+  v_str    (*s*).
+The *p*-type value is an executable code address. It is an absolute memory
+address valid only within the containing subject. Library passes it as a
+32-bit unsigned integer number.
+The 'v_enum' field is of *int* type.
+The 'v_str' field has the *char $$*$$* type. When data handler is called,
+this field points to an internal library buffer terminated by zero byte.
+The handler should not change contents of this buffer or pass its address
+to other user functions since the address can change from call to call.
+If needed, the handler can create a copy of the buffer contents.
+If data is undefined, the value field contains zero converted to the
+corresponding type (for *v_str* this is *NULL* pointer).
+
+The 'time' field has *long* type and contains the time of the last value
+change or when the data last changed the "undefined" status in the containing
+subject. The time is expressed in *v.t.u.*s (virtual time units).
+In current version of the library this field is not used
+and always contains zero.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

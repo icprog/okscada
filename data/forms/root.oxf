@@ -1,0 +1,43 @@
+<format>
+  <window>
+	<width>471</width>
+	<height>224</height>
+	<background>tiles/stonewall2.png</background>
+  </window>
+  <objects>
+	<object>
+		<class>Pixmap</class>
+		<posx>128</posx>
+		<posy>8</posy>
+		<width>60</width>
+		<height>56</height>
+		<Image>tools/tree.png</Image>
+	</object>
+	<object>
+		<class>Control::FormLink</class>
+		<posx>8</posx>
+		<posy>80</posy>
+		<width>212</width>
+		<height>112</height>
+		<Label>pic(tools/bomb.png) Offnominals</Label>
+		<Format>offnom.oxf</Format>
+	</object>
+	<object>
+		<class>Control::FormLink</class>
+		<posx>240</posx>
+		<posy>80</posy>
+		<width>212</width>
+		<height>112</height>
+		<Label>pic(tools/tools.png)Service\nand\n Control</Label>
+		<Format>service</Format>
+	</object>
+	<object>
+		<class>Label</class>
+		<posx>192</posx>
+		<posy>24</posy>
+		<Label>ROOT DISPLAY</Label>
+		<font>Arial Black 14</font>
+		<color>#e5ffb8</color>
+	</object>
+  </objects>
+</format>

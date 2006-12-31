@@ -1,0 +1,119 @@
+oscan(1)
+========
+Victor Semizarov <vitkinet@gmail.com>
+
+
+NAME
+----
+oscan - extracts debugging information from object files.
+
+
+SYNOPSIS
+--------
+*oscan* [OPTIONS]...
+
+
+DESCRIPTION
+-----------
+The *oscan* utility extracts debugging information from object files.
+
+
+OPTIONS
+-------
+
+*-m*, *--make*::
+        Action: parse new debugging information for current domain
+        (this is the default action).
+
+*-d*, *--domain*='DOMAIN'::
+        Specific domain name for the *make* action
+        (default: from config file).
+
+*-f*, *--force*::
+        Make even unchanged modules (default: 'no').
+
+*-a*, *--addresses*::
+        Only update addresses (default: also parse debug info).
+
+*-H*, *--human-readable*::
+        Create human readable representation of internal files
+        (default: 'no').
+
+*-t*, *--leave-temp*::
+        Leave temporary files (default: 'delete').
+
+*--sql*::
+        Create the Oracle 'sqlplus' scripts.
+
+*--no-auto-pack*::
+        Do not try to suppress duplicating type definitions
+        (default: 'suppress').
+
+*--no-warn-duplicates*::
+        Do not log warnings about duplicate entities.
+
+*--tatom-statistics*::
+        Evaluate statistics of different tatom cases and keep it
+        in the 'directory_of_common_config/tatom_stats' file.
+
+*--test-addressing*::
+        Assign virtual addresses if a symbol not found.
+
+*-w*, *--show-progress*::
+        Show progress indicator when parsing (default: 'no').
+
+*--progress-step*='NUM'::
+        Update progress indicator every 'NUM' parsed lines
+        (default: '1000').
+
+*-T*, *--trace*='FILE'::
+        Dump internal structures into the trace during parsing
+        if the file is 'log' then dump trace into log
+        (default: no trace).
+
+*-l*, *--log-file*='FILE'::
+        Dump log to the given file (default: from config).
+
+*--reset-log*::
+        Reset log file at startup (default: 'append').
+
+*-E*, *--enable-control*::
+        Enable invoking *ocontrol* (default: from config file).
+
+*-p*, *--parse*='FILE'::
+        Action: test parsing of objdump output from given file.
+
+*-r*, *--resolve*='FILE'::
+        Action: test address resolution using the given 'PSV' file.
+
+*--options*='FILE'::
+        Read options from 'FILE'.
+
+*-c*, *--config*='FILE'::
+        Alternate path to the common config file (default: 'ocommon.ini'
+        from '$OPTIKUS_HOME/etc' or from where the program was started).
+
+*-v*, *--version*::
+        Print version and configuration data and exit.
+
+*-h*, *--help*::
+       Print help and exit.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: http://sourceforge.net/projects/asciidoc/[]
+
+Main web site: http://optikus.sourceforge.net/[]
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net. Free use of this software is
+granted under the terms of the GNU General Public License (GPL).
+

@@ -1,0 +1,61 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHSENDCTLMSG" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchSendCtlMsg \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchSendCtlMsg (int \fR\fB\fIdest\fR\fR\fB, int \fR\fB\fIklass\fR\fR\fB, int \fR\fB\fItype\fR\fR\fB, const char *\fR\fB\fIformat\fR\fR\fB, \&...)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine dynamically generates data packet and sends it. The dest argument identifies receiver of the packet. The \fIklass\fR and \fItype\fR arguments set major and minor numbers of the packet. If the \fIformat\fR string is empty, the packet will be without parameters. Non\-empty \fIformat\fR string defines the number and types of parameters in the packet data field. The parameters are passed after the \fIformat\fR string. The \fIformat\fR string is an ordered sequence of data specifiers similar to the format specifiers passed to \fBprintf()\fR. Each specifier starts from the \fB%\fR sign followed by 1 or 2 Latin letters. The next table describes available format specifiers:
+.sp
+.sp
+.nf
+/\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\\
+| Specifier |  Parameter description                                   |
+|\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-|
+| %d        | Adds to the packet the 4\-byte signed integer number      |
+|           |   (from \-2147483648 to +2147483647).                     |
+|           |   The routine parameter is signed int.                   |
+| %u        | Adds to the packet the 4\-byte unsigned integer number    |
+|           |   (from 0 to +4294967296).                               |
+|           |   The routine parameter is unsigned int.                 |
+| %hd       | Adds to the packet the 2\-byte signed integer number      |
+|           |   (from \-32768 to +32767).                               |
+|           |   The routine parameter is signed short int.             |
+| %hu       | Adds to the packet the 2\-byte unsigned integer number    |
+|           |   (from 0 to +65535).                                    |
+|           |   The routine parameter is unsigned short int.           |
+| %x        | Same as %u.                                              |
+| %hx       | Same as %hu.                                             |
+| %f        | Adds to the packet the 4\-byte IEEE single precision      |
+|           |   floating point number.                                 |
+|           |   The routine parameter is passed as float.              |
+| %lf       | Adds to the packet the 8\-byte IEEE double precision      |
+|           |   floating point number.                                 |
+|           |   The routine parameter is passed as double.             |
+\\\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-/
+.fi
+.sp
+.nf
+No other format specifiers are allowed.
+.fi
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

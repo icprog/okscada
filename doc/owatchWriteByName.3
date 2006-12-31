@@ -1,0 +1,45 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHWRITEBYNAME" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchWriteByName \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBowop_t owatchWriteByName (const char *\fR\fB\fIdesc\fR\fR\fB, const oval_t *\fR\fB\fIpvalue\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine performs a single modification of the data sample described by \fIdesc\fR without monitoring registration. The \fIdesc\fR argument describes the data sample following the next syntax:
+.sp
+\fB[subject'@']prototype\fR
+.sp
+The \fBprototype\fR string describes the data sample in the C language syntax. By default the data sample is searched among all subjects registered with the monitoring server. If there are several subjects containing data with the same name, the system picks the first matching name, but the search order is not determined. Using the optional \fBsubject\fR string the data sample location can be fixed. The routine behavior can be modeled by the following pseudo\-code:
+.sp
+.sp
+.nf
+    ooid_t virtual_temp_ooid;
+    oval_t str_val, tmp_val;
+    owop_t op1, op2;
+    op1 = owatchAddMonitor (desc, &virtual_temp_ooid);  /* indeed no monitoring is performed */
+    owatchWaitOp (op1, async_timeout, NULL);
+    op2 = owatchWrite (virtual_temp_ooid, pvalue);
+    owatchWaitOp (op2, async_timeout, NULL);
+    owatchRemoveMonitor (virtual_temp_ooid);
+.fi
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

@@ -1,0 +1,44 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHWORK" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchWork \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchWork (int \fR\fB\fItimeout_msec\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This function checks for timer or socket events and handles them, probably calling user callback functions.
+.sp
+.TP 3
+\(bu
+If the argument is
+\fIOWATCH_NOWAIT\fR, the function does not block and handles only ready events.
+.TP
+\(bu
+If the argument is
+\fIOWATCH_FOREVER\fR, the function waits for a next event and returns after handling it.
+.TP
+\(bu
+If the argument is a positive integer, the function waits for events for the duration of the given number of milliseconds and handles them, if any (blocking behavior with fixed duration).
+.SH "RETURN VALUE"
+The function returns \fIERROR\fR if the library is not initialized, or the argument is negative and is not \fIOWATCH_FOREVER\fR. Otherwise, the function returns \fIOK\fR.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

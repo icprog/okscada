@@ -1,0 +1,75 @@
+oscan(1)
+========
+Victor Semizarov <vitkinet@gmail.com>
+
+
+NAME
+----
+ohubd - optikus monitoring and control daemon.
+
+
+SYNOPSIS
+--------
+*ohubd* [OPTIONS]...
+
+
+DESCRIPTION
+-----------
+The *ohubd* daemon performs monitoring and control of back-end agents.
+
+
+OPTIONS
+-------
+
+*-c*, *--config*='FILE'::
+        Location of the common config file
+        (default: '$OPTIKUS_HOME/etc/ocommon.ini' or from
+        where the program was started).
+
+*-l*, *--logfile*='FILE'::
+        Log to given file (default: from config).
+
+*-d*, *--domain*='DOMAIN'::
+        Current domain to work on (default: from config).
+
+*-P*, *--pidfile*='FILE'::
+        Save program ID to the given file (default: from config).
+
+*-D*, *--test-pforms*::
+        Test address resolution.
+
+*-p*, *--port*='PORT'::
+        Listen at the given port (default: from config or '3217').
+
+*-g*, *--debug*='LEVEL'::
+        Sets numeric verbosity level.
+
+*-v*, *--version*::
+        Print version information and exit.
+
+*-h*, *--help*::
+        Print help and exit.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+AUTHOR
+------
+Written by Victor Semizarov, <mailto:vitkinet@gmail.com[]>
+
+
+RESOURCES
+---------
+SourceForge: http://sourceforge.net/projects/asciidoc/[]
+
+Main web site: http://optikus.sourceforge.net/[]
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net. Free use of this software is
+granted under the terms of the GNU General Public License (GPL).
+

@@ -1,0 +1,36 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHENABLEMONITORI" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchEnableMonitoring \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchEnableMonitoring (bool_t \fR\fB\fIenable\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine globally enables or disables activation of value change handlers. It does not affect monitoring of the data registered with the \fIdont_monitor\fR argument of \fBTRUE\fR.
+.sp
+.SH "RETURN VALUE"
+This routine always returns OK.
+.sp
+.SH "NOTE"
+Disabling change handlers does not stop receiving the updated values from server, and when the activation is enabled again, the accumulated changes will be "splashed" on the user application. To prevent the splash effect, before enabling change handlers, all the "value changed" flags have to be reset by calling \fBowatchFlushAllMonitors()\fR.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

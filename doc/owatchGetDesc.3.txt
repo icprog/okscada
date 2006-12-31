@@ -1,0 +1,49 @@
+owatchGetDesc(3)
+================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchGetDesc - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchGetDesc (ooid_t 'ooid', char $$*$$'desc_buf', int 'desc_buf_len')*;
+
+
+DESCRIPTION
+-----------
+This routine stores the description string of the data sample with given
+identifier in the user buffer pointed to by the 'desc_buf' argument.
+
+
+RETURN VALUE
+------------
+The routine returns 'OK' if the library is initialized, data sample with
+given identifier exists and is registered, the buffer pointer is not null,
+and the buffer length is enough to hold the description.
+Otherwise, the routine returns 'ERROR'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

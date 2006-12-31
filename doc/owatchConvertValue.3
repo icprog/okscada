@@ -1,0 +1,40 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHCONVERTVALUE" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchConvertValue \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchConvertValue (const oval_t *\fR\fB\fIsrc_val\fR\fR\fB, oval_t *\fR\fB\fIdst_val\fR\fR\fB, char *\fR\fB\fIdata_buf\fR\fR\fB, int \fR\fB\fIdata_buf_len\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine converts from one data type to another.
+.sp
+Source data should be stored in the \fIsrc_val\fR structure before the call, and the \fItype\fR field of this structure should describe the source data type. String data should be stored in a user buffer with its pointer stored in the \fIv.v_str\fR field of \fIsrc_val\fR and its length stored in the \fIlen\fR field. For other data types \fIlen\fR is ignored: it can be easily derived from the data type. The user application should store the target data type in the \fItype\fR field of the \fIdst_val\fR structure before the call.
+.sp
+The routine will put the converted data in \fIdst_val\fR. The routine returns \fIERROR\fR if source or destination types are invalid. Otherwise, the routine returns \fIOK\fR.
+.sp
+Upon successful return the \fIdst_val.time\fR field is always equal to \fIsrc_val.time\fR. If the target data type is not string, the \fIdst_val.len\fR field is filled according to the target type.
+.sp
+For converting data to the string type the application should allocate in advance a buffer and pass its address in the \fIdata_buf\fR argument and length in the \fIbuf_len\fR argument (in other cases these arguments are ignored). If the buffer address is not null and the length is enough to hold the result string, the string will be copied to the buffer, the buffer address will be stored in \fIdst_val.v.v_str\fR and the result string length will be stored in \fIdst_val.len\fR. Otherwise, the result string will not be copied, its length including the trailing zero will be stored in \fIdst_val.len\fR, null pointer will be stored in \fIdst_val.v.v_str\fR, all other \fIdst_val\fR fields will be filled respectively, and the routine will return \fIOK\fR.
+.sp
+It is allowed for \fIdata_buf\fR and \fIsrc_val.v.v_str\fR to point to the same buffer. If \fIsrc_val.v.v_str\fR is a null pointer, upon return the \fIdst_val.len\fR will contain zero, \fIdst_val.v.v_str\fR will contain null pointer and the routine will return \fIOK\fR.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

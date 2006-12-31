@@ -1,0 +1,57 @@
+owatchWork(3)
+=============
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchWork - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchWork (int 'timeout_msec')*;
+
+
+DESCRIPTION
+-----------
+This function checks for timer or socket events and handles them, probably
+calling user callback functions.
+
+- If the argument is 'OWATCH_NOWAIT', the function does not block and handles
+  only ready events.
+
+- If the argument is 'OWATCH_FOREVER', the function waits for a next event
+  and returns after handling it.
+
+- If the argument is a positive integer, the function waits for events for
+  the duration of the given number of milliseconds and handles them, if any
+  (blocking behavior with fixed duration).
+
+
+RETURN VALUE
+------------
+The function returns 'ERROR' if the library is not initialized, or the argument
+is negative and is not 'OWATCH_FOREVER'. Otherwise, the function returns 'OK'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

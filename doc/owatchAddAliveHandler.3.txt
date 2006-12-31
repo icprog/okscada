@@ -1,0 +1,61 @@
+owatchAddAliveHandler(3)
+========================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchAddAliveHandler - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchAddAliveHandler (OwatchAliveHandler_t 'phand', long 'param')*;
+
+
+DESCRIPTION
+-----------
+This routine registers the subject state change handler. Returns 'OK' on
+success. If a status change handler with the same address is already
+registered or the library has reached maximum number of registered handlers,
+the routine returns 'ERROR'. The state change events include transitions of
+subjects from offline to online and back, server connection transitions
+between established and shut down (these changes are tracked via the virtual
+*$$*$$* subject), and the domain state switching between complete and incomplete
+(tracked by the *$$+$$* subject, see the comment above).
+
+The handler routine should have the following prototype:
+
+*int aliveHandler (long 'param', const char $$*$$'subject_name', const char $$*$$'new_state')*
+
+The handler will be called for the state changes occurring after the
+registration. When a subject goes online or offline, the handler is called
+with a user parameter, name of the subject changing the state and the new
+status: TRUE or FALSE. The value returned by handler is ignores. If due to an
+offline subject switching online all the permanent subjects become online, the
+library generates the *online* event of the virtual "complete domain" subject
+with the name of "*$$+$$*". If the domain is complete, and one of permanent subjects
+goes offline, then before passing the subject switch event to handlers, the
+library generates the *offline* event for the "*$$+$$*" subject.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

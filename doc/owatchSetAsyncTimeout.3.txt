@@ -1,0 +1,49 @@
+owatchSetAsyncTimeout(3)
+========================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchSetAsyncTimeout - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchSetAsyncTimeout (int 'timeout')*;
+
+
+DESCRIPTION
+-----------
+This routine modifies the value of the *async_timeout* library parameter. The
+new parameter value will affect the behavior of the asynchronous library
+routines.
+
+
+RETURN VALUE
+------------
+This function returns 'OK' if the argument is positive or is one of
+'OWATCH_NOWAIT' or 'OWATCH_FOREVER'. Otherwise, the argument is illegal and the
+function returns 'ERROR'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

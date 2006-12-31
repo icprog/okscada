@@ -1,0 +1,25 @@
+Optikus NEWS -- history of user-visible changes.  2006-10-06
+Copyright (C) 2006-2007, vitki.net.
+See the end for copying conditions.
+
+Please send OPtikus bug reports to optikus.sourceforge.net.
+
+* Changes in Optikus 0.1
+
+** Initial version, autotoolized.
+
+----------------------------------------------------------------------
+Copyright information:
+
+Copyright (C) 2006-2007, vitki.net
+
+   Permission is granted to anyone to make or distribute verbatim copies
+   of this document as received, in any medium, provided that the
+   copyright notice and this permission notice are preserved,
+   thus giving the recipient permission to redistribute in turn.
+
+   Permission is granted to distribute modified versions
+   of this document, or of portions of it,
+   under the above conditions, provided also that they
+   carry prominent notices stating who last changed them.
+

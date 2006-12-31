@@ -1,0 +1,34 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHCONNECT" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchConnect \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBowop_t owatchConnect (const char *\fR\fB\fIhub_url\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine initiates asynchronous connection to the ohub server. The \fIhub_url\fR argument defines the server network address and has the following syntax:
+.sp
+\fB[olang://]host[:port]\fR
+.sp
+The \fBolang://\fR prefix is optional. The \fBhost\fR string is the server host name or the IP address in dot\-decimal notation. Optional \fBport\fR defines the number of the server control (UDP) port number. If \fBport\fR is left out it is by default equal to \fB3217\fR. The server command and data (TCP) port number is one more than the control port. If the \fIhub_url\fR syntax is incorrect or the connection has been already initiated, the routine immediately returns \fIOWOP_ERROR\fR. Otherwise the routine behavior depends on the \fBasync_timeout\fR library parameter. If \fBasync_timeout\fR is \fIOWATCH_NOWAIT\fR, the routine does not block and immediately returns the operation descriptor of the pending connection operation. Otherwise, the connection operation status can be inquired via the \fBowatchWaitOp\fR routine.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

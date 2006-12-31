@@ -1,0 +1,57 @@
+owatchGetFileHandles(3)
+=======================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchGetFileHandles - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchGetFileHandles (int $$*$$'file_handle_buf', int $$*$$'buf_size_ptr')*;
+
+
+DESCRIPTION
+-----------
+The library internally uses sockets for interaction with the data hub. One can
+call *owatchWork()* to wait for events on the socket descriptors. However, if a
+user program has to wait for events on other file descriptors, a combined
+select-wait operation is required, and the program needs to know the 'watch'
+socket descriptors. This routine fills the 'file_handle_buf' array by numbers of
+the internal socket descriptors. The 'buf_size' variable referenced by the
+second argument should contain maximum number of descriptors the array can
+hold without overflow.
+
+
+RETURN VALUE
+------------
+If the size is enough, the array will be filled by
+descriptors, the function will put their number in the variable pointed to by
+'buf_size_ptr' and return 'OK'. If the array would overflow, the function will
+return 'ERROR' and put the required minimum array size in '*buf_size_ptr'. If
+first or second argument is a null pointer, the function immediately returns
+'ERROR'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

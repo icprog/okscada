@@ -1,0 +1,33 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHWRITE" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchWrite \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBowop_t owatchWrite (ooid_t \fR\fB\fIooid\fR\fR\fB, const oval_t *\fR\fB\fIvalue\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine performs a single modification of a data sample registered for monitoring. The type of the \fBoval_t\fR \fIvalue\fR shall match the target data type, otherwise the routine immediately returns \fIERROR\fR. (\fBFIXME\fR: perhaps, automatic conversion could be allowed). If at the moment the subject has "lost" the data sample, the operation immediately returns \fIERROR\fR.
+.sp
+.SH "NOTE"
+The mere fact of calling the routine does not directly result in calling value change handlers. The handlers are activated as an indirect consequence of this routine when the data modification is revealed by the monitored subject. (\fBFIXME\fR: would it be correct to implement a different king of behavior ?).
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

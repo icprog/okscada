@@ -1,0 +1,36 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHWRITEASSTRING" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchWriteAsString \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchWriteAsString (const char *\fR\fB\fIdesc\fR\fR\fB, const char *\fR\fB\fIvalue\fR\fR\fB, int \fR\fB\fItimeout\fR\fR\fB, int *\fR\fB\fIerr_code\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine performs a single modification of the data sample described by \fIdesc\fR without monitoring registration. The new \fIvalue\fR is taken from the second argument and converted to the target sample type. If the target sample has a numeric type, the system attempts to treat the input string as containing a decimal number. If the target sample is an integer number, the string converted to a number is truncated. Current version of the library does not check for possible minimum\-maximum overflows, it is responsibility of the user application. In such cases the converted data value is undefined, and the error code is not set.
+.sp
+.SH "RETURN VALUE"
+On success the routine returns \fIOK\fR. On failure the routine returns \fIERROR\fR and sets the error code appropriately.
+.sp
+.SH "NOTE"
+In future the library will support more strict type checks.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

@@ -1,0 +1,62 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OSCAN" "1" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+ohubd \- optikus monitoring and control daemon.
+.SH "SYNOPSIS"
+\fBohubd\fR [OPTIONS]\&...
+.sp
+.SH "DESCRIPTION"
+The \fBohubd\fR daemon performs monitoring and control of back\-end agents.
+.sp
+.SH "OPTIONS"
+.TP
+\fB\-c\fR, \fB\-\-config\fR=\fIFILE\fR
+Location of the common config file (default:
+\fI$OPTIKUS_HOME/etc/ocommon.ini\fR
+or from where the program was started).
+.TP
+\fB\-l\fR, \fB\-\-logfile\fR=\fIFILE\fR
+Log to given file (default: from config).
+.TP
+\fB\-d\fR, \fB\-\-domain\fR=\fIDOMAIN\fR
+Current domain to work on (default: from config).
+.TP
+\fB\-P\fR, \fB\-\-pidfile\fR=\fIFILE\fR
+Save program ID to the given file (default: from config).
+.TP
+\fB\-D\fR, \fB\-\-test\-pforms\fR
+Test address resolution.
+.TP
+\fB\-p\fR, \fB\-\-port\fR=\fIPORT\fR
+Listen at the given port (default: from config or
+\fI3217\fR).
+.TP
+\fB\-g\fR, \fB\-\-debug\fR=\fILEVEL\fR
+Sets numeric verbosity level.
+.TP
+\fB\-v\fR, \fB\-\-version\fR
+Print version information and exit.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help and exit.
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "AUTHOR"
+Written by Victor Semizarov, <vitkinet@gmail.com>
+.sp
+.SH "RESOURCES"
+SourceForge: http://sourceforge.net/projects/asciidoc/
+.sp
+Main web site: http://optikus.sourceforge.net/
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. Free use of this software is granted under the terms of the GNU General Public License (GPL).
+.sp

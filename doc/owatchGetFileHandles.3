@@ -1,0 +1,33 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHGETFILEHANDLES" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchGetFileHandles \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchGetFileHandles (int *\fR\fB\fIfile_handle_buf\fR\fR\fB, int *\fR\fB\fIbuf_size_ptr\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+The library internally uses sockets for interaction with the data hub. One can call \fBowatchWork()\fR to wait for events on the socket descriptors. However, if a user program has to wait for events on other file descriptors, a combined select\-wait operation is required, and the program needs to know the \fIwatch\fR socket descriptors. This routine fills the \fIfile_handle_buf\fR array by numbers of the internal socket descriptors. The \fIbuf_size\fR variable referenced by the second argument should contain maximum number of descriptors the array can hold without overflow.
+.sp
+.SH "RETURN VALUE"
+If the size is enough, the array will be filled by descriptors, the function will put their number in the variable pointed to by \fIbuf_size_ptr\fR and return \fIOK\fR. If the array would overflow, the function will return \fIERROR\fR and put the required minimum array size in \fI*buf_size_ptr\fR. If first or second argument is a null pointer, the function immediately returns \fIERROR\fR.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

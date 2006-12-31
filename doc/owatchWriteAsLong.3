@@ -1,0 +1,33 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHWRITEASLONG" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchWriteAsLong \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchWriteAsLong (const char *\fR\fB\fIdesc\fR\fR\fB, long \fR\fB\fIvalue\fR\fR\fB, int \fR\fB\fItimeout\fR\fR\fB, int *\fR\fB\fIerr_code\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine performs a single modification of the data sample described by \fIdesc\fR without registration of monitoring registration. The new value is taken from the \fIvalue\fR argument and converted to the target sample type. Conversion to string represents the value as a decimal integer. Current version of the library does not check for possible minimum\-maximum overflows, it is responsibility of the user application. In such cases the converted data value is undefined, and the error code is not set. Future version of the library will support more strict type checks. The routine can block the calling program according to the \fItimeout\fR argument.
+.sp
+.SH "RETURN VALUE"
+On success the routine returns \fIOK\fR. On failure the routine returns \fIERROR\fR and sets the \fIerr_code\fR error code appropriately.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

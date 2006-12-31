@@ -1,0 +1,3 @@
+Optikus is an open tool for data monitoring, recording, analysis,
+simulation and SCADA framework intended to cope with large volumes
+of data. It has C, C++, Perl and Java bindings ready.

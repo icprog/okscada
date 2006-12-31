@@ -1,0 +1,437 @@
+#!/usr/bin/perl
+# -*-perl-*-    vi: set ts=4 sw=4 :
+#
+#  Copyright (C) 2006-2007, vitki.net. All rights reserved.
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#  $Date$
+#  $Revision$
+#  $Source$
+#
+#  Synaptic displays runtime.
+#
+
+use strict;
+use FindBin qw[$Bin];
+use Cwd 'abs_path';
+BEGIN { $ENV{OPTIKUS_HOME} = abs_path("$Bin/..") unless $ENV{OPTIKUS_HOME}; }
+use lib "$ENV{OPTIKUS_HOME}/lib/perl5/site_perl";
+
+use utf8;
+use open ':utf8';
+
+use Gtk2;
+use Optikus::Forms::Widget;
+use Optikus::Forms::Util;
+use Optikus::Watch ':all';
+use Optikus::Log ':all';
+
+
+my $var_alias_file = "$pforms_home/etc/varalias.lst";
+my $display_list_file = "$etc_home/displays.lst";
+my $root_display = "root";
+
+my (%forms, %toggles, $listwin, $area, $statusbar, $ui_popup);
+my ($last_press_time);
+
+my $open_qty = 0;
+
+
+$Optikus::Forms::Widget::TEST = 0;
+$Optikus::Forms::Widget::SIMULATION = 0;
+for (@ARGV) {
+  if ($_ eq '-test') {
+    $Optikus::Forms::Widget::TEST = 1;
+    last;
+  }
+}
+$Optikus::Forms::Widget::TEST = 1
+  if exists $ENV{OPTIKUS_FORMS_TEST};
+
+pforms_gtk_init("Optikus Forms");
+
+Optikus::Watch::init(client_name => "opforms",
+                     server => $ENV{OPTIKUS_SERVER},
+                     msg_dest => "sample",
+                     conn_timeout => 0,
+                     def_timeout => 2000,
+                     period => 500,
+                     verbosity => 2,
+                    );
+my $acount = Optikus::Watch::readAliasFile($var_alias_file);
+olog "parsed $acount aliases";
+create_flist();
+my $initial = $ARGV[0];
+if (defined $initial) {
+  $initial .= ".oxf" unless $initial =~ /\.oxf$/;
+  if (activate_form($initial)) {
+    toggle_form_list(0);
+  } else {
+    undef $initial;
+  }
+}
+toggle_form_list(1) unless defined $initial;
+Gtk2->main;
+
+sub toggle_form_list
+{
+  my $on = shift;
+  if ($on) {
+    $listwin->show_all unless $listwin->visible;
+    $listwin->present;
+  }
+  if (not $on and $listwin->visible and $open_qty > 0) {
+    $listwin->hide;
+  }
+}
+
+sub destroy_form
+{
+  my $name = shift;
+  my $form = $forms{$name};
+  return unless defined $form;
+  for my $ui (@{$form->{UI}}) {
+    $ui->forget;
+    $ui->DESTROY;
+    #undef $ui->{WIDGET};
+  }
+  $form->{window}->destroy;
+  undef $forms{$name};
+  $open_qty--;
+  $open_qty = 0 if $open_qty < 0;
+  toggle_form_list(1) unless $open_qty;
+  $toggles{$name}->set_active(0) if defined $toggles{$name};
+  olog "destroy form [$name]\n";
+}
+
+sub toggle_form
+{
+  my $name = shift;
+  my $toggle = $toggles{$name};
+  my $on = defined($toggle) ? $toggle->get_active() : 1;
+  if ($on) {
+    create_form($name);
+  } else {
+    destroy_form($name);
+  }
+}
+
+sub activate_form
+{
+  my $name = shift;
+  $name .= ".oxf"
+      if not defined $toggles{$name} and defined $toggles{"$name.oxf"};
+  unless (defined($toggles{$name})) {
+    olog "no such form: [$name]\n";
+    return 0;
+  }
+  if (defined($forms{$name})) {
+    close_popups();
+    $forms{$name}->{window}->present;
+  } else {
+    $toggles{$name}->set_active(1);
+  }
+  return 1;
+}
+
+sub bg_set
+{
+  my ($form, $area, $name) = @_;
+  my $rcstyle = Gtk2::RcStyle->new;
+  $rcstyle->bg_pixmap_name("normal",
+                           defined($name) ? "$pic_home/$name" : undef);
+  $area->parent->modify_style($rcstyle) if defined $area;
+  for my $ui (@{$form->{UI}}) {
+    next unless $ui->{want_bg};
+    $ui->{WIDGET}->modify_style($rcstyle);
+  }
+}
+
+sub create_form
+{
+  my ($name, $filename) = @_;
+  close_popups();
+  $filename = "$fmt_home/$name" unless defined $filename;
+  my $fwin = Gtk2::Window->new("toplevel");
+  my $title = $name;
+  $title =~ s/\.\w+$//;
+  $fwin->set_title("Display Viewer: $title");
+  $fwin->{tooltips} = Gtk2::Tooltips->new;
+  $fwin->signal_connect(delete_event => sub { destroy_form($name); });
+  my $winbox = new Gtk2::VBox(0, 0);
+  $fwin->add($winbox);
+
+  my $thbox = Gtk2::HBox->new(0,0);
+  my $tools = Gtk2::Toolbar->new;
+  create_tool($tools,"Close Window","kpic/stop.png",
+              sub { destroy_form($name); });
+  $thbox->pack_start($tools, 0, 1, 2);
+  $tools->set_style("icons");
+  $tools = Gtk2::Toolbar->new;
+  create_tool($tools,"Show List","kpic/view_tree.png",
+              sub { toggle_form_list(1); });
+  create_tool($tools,"Hide List","kpic/view_remove.png",
+              sub { toggle_form_list(0); });
+  create_tool($tools,"Open Root Display","tools/tree.png",
+              sub { activate_form($root_display); });
+  $tools->set_style("icons");
+  $thbox->pack_start($tools, 0, 1, 2);
+  $tools = new Gtk2::Toolbar->new;
+  $thbox->pack_end ($tools, 0, 0, 0);
+  $tools->set_style("icons");
+  create_tool($tools,"Close All Displays","kpic/exit.png",
+              sub { exit_forms(); });
+  $winbox->pack_start($thbox, 0, 0, 0);
+
+  $area = Gtk2::Fixed->new;
+  my $scroll = Gtk2::ScrolledWindow->new;
+  $scroll->set_border_width(2);
+  $scroll->set_policy("automatic", "automatic");
+  $scroll->add_with_viewport($area);
+  $winbox->add($scroll);
+  $statusbar = Gtk2::Statusbar->new;
+  $winbox->pack_end($statusbar, 0, 0, 0);
+  $fwin->show_all;
+
+  my %form;
+  $form{window}    = $fwin;
+  $form{tooltips}  = $fwin->{tooltips};
+  $form{area} = $area;
+  $form{UI}        = ();
+  $form{EL}        = ();
+  $form{name}      = $name;
+  $form{filename}  = $filename;
+  Optikus::Watch::idle(50);
+  Optikus::Watch::enable(0);
+  parse_simple_xml($filename, \%form, \&handle_xml_elem);
+  Optikus::Watch::enable(1);
+  Optikus::Watch::idle(50);
+  bg_set(\%form, $area, $form{background});
+  my ($fwidth, $fheight) = ($form{width}, $form{height});
+  $fwidth = 640 unless defined $fwidth;
+  $fheight = 480 unless defined $fheight;
+  $fwin->hide;
+  $fwin->set_gravity("center");
+  if ($open_qty > 0) {
+    my ($t_w, $cx, $cy, $t_m) = Gtk2::Gdk->get_default_root_window->get_pointer;
+    $cx += $fwidth/2 while $cx < $fwidth/2;
+    $cy += $fheight/2 while $cy < $fheight/2;
+    $cx -= $fwidth/2;
+    $cy -= $fheight/2;
+    $fwin->move ($cx, $cy);
+  } else {
+    $fwin->set_position("center");
+  }
+  my ($wx, $wy, $ww, $wh, $wd) = $fwin->window->get_geometry;
+  my $rw = $fwidth + $ww - $scroll->allocation->width + 5;
+  my $rh = $fheight + $wh - $scroll->allocation->height + 5;
+  $fwin->set_default_size($rw, $rh);
+  $fwin->resize($rw, $rh);
+  $fwin->signal_connect(button_press_event => \&button_press_handler, \%form);
+  $fwin->show;
+  Optikus::Forms::Util::set_window_icon($fwin, "kpic/frame_image.png");
+  $forms{$name} = \%form;
+  $forms{$filename} = \%form;
+  $open_qty++;
+  olog "opened form [$name]\n";
+  return \%form;
+}
+
+
+sub handle_xml_elem
+{
+  my ($file, $fmt, $tag, $attr) = @_;
+  return 0 unless $tag eq "object" or $tag eq "window";
+  my %attr = %{$attr};
+  if ($tag eq "object")
+  {
+    $attr{class} = "" unless defined $attr{class};
+    $attr{type} = "" unless defined $attr{type};
+    my $clas = join("::", "Optikus", "Forms", "Widget",
+                    $attr{class}, $attr{type});
+    $clas =~ s/:+$//;
+    $attr{_parent} = $fmt->{area};
+    $attr{_window} = $fmt->{window};
+    $attr{_form} = $fmt;
+    my $ui = new $clas (%attr);
+    my $widget = $ui->{WIDGET};
+    #print "created ui=[$ui] x=$ui->{posx} y=$ui->{posy}\n";
+    $fmt->{area}->put($widget, $ui->{posx}, $ui->{posy});
+    $widget->signal_connect(button_press_event => \&button_press_handler, $fmt);
+    $widget->show_all;
+    if (defined($fmt->{textfont}) || defined($fmt->{textcolor})) {
+      $ui->update_appearance(0, font => $fmt->{textfont},
+                             color => $fmt->{textcolor});
+    }
+    unshift @{$fmt->{UI}}, $ui;
+    $fmt->{EL}->{$ui} = $ui;
+  }
+  if ($tag eq "window")
+  {
+    for ("width", "height", "textfont", "textcolor", "background") {
+      $fmt->{$_} = $attr{$_};
+    }
+  }
+  return 1;
+}
+
+sub button_press_handler
+{
+  my ($widget, $event, $form) = @_;
+  close_popups();
+  return 0 if $event->time == $last_press_time;
+  $last_press_time = $event->time;
+  my ($x, $y) = $event->coords;
+  return unless $event->button == 3;
+  my $wrecord = find_widget_by_xy($event->x, $event->y,
+                                  $widget, $area, @{$form->{UI}});
+  unless (defined $wrecord) {
+    olog "widget not found\n";
+    return 1;
+  }
+  olog "widget_record=$wrecord\n";
+  ui_operations($wrecord);
+  return 1;
+}
+
+sub close_popups
+{
+  $ui_popup->destroy if defined $ui_popup;
+  undef $ui_popup;
+}
+
+sub ui_operations
+{
+  my $ui = shift;
+  my $var;
+  close_popups;
+  $var = $ui->{VARNAME}->[0];
+  return unless length($var) > 0;
+  $ui_popup = Gtk2::Window->new("toplevel");
+  $ui_popup->set_position("mouse");
+  $ui_popup->set_title("change");
+  
+  my $vbox = Gtk2::VBox->new(0, 5);
+  $ui_popup->add($vbox);
+  my $hbox = Gtk2::HBox->new(0, 0);
+  $vbox->pack_start($hbox, 0, 1, 0);
+  my $label = Gtk2::Label->new($var);
+  $hbox->pack_start($label, 0, 1, 0);
+  my $entry = Gtk2::Entry->new;
+  $entry->set_text($ui->{VAR}->[0]);
+  $hbox->pack_start($entry, 0, 1, 0);
+  $entry->signal_connect(activate => sub {
+    close_popups;
+    $ui->{VAR}->[0] = $entry->get_text;
+  });
+  $hbox = Gtk2::HBox->new(0, 0);
+  $vbox->pack_start($hbox, 0, 1, 0);
+  my $button = Gtk2::Button->new("OK");
+  $hbox->pack_start($button, 1, 1, 1);
+  $button->signal_connect(clicked => sub {
+    close_popups;
+    $ui->{VAR}->[0] = $entry->get_text;
+  });
+  $button->can_default(1);
+  $button->has_default(1);
+  $button = Gtk2::Button->new("Cancel");
+  $hbox->pack_start($button, 1, 1, 1);
+  $button->signal_connect(clicked => sub {
+    close_popups;
+  });
+  $ui_popup->show_all;
+}
+
+my @order = ();
+
+sub order
+{
+  my $name = shift;
+  return 10001 unless defined $name;
+  for my $num (0..$#order) {
+    return $num + 1 if $order[$num] eq $name;
+  }
+  return 10000;
+}
+
+sub create_flist
+{
+  my %truenames;
+  if (open(FDL, $display_list_file)) {
+    while (<FDL>) {
+      next unless /^(\S+)\s+(\S.*)\s*$/;
+      $truenames{$1} = $2;
+      push @order, $1;
+    }
+    close FDL;
+  }
+  my $cwd = `pwd`;
+  chdir $fmt_home;
+  my @flist = glob("*.oxf");
+  chdir $cwd;
+  $listwin = Gtk2::Window->new("toplevel");
+  $listwin->set_title("Optikus Displays: LIST");
+  $listwin->{tooltips} = Gtk2::Tooltips->new;
+  $listwin->signal_connect(destroy => sub { Gtk2->main_quit; });
+  my ($winbox, $scroll, $vbox, $hbox, $tools);
+  $winbox = Gtk2::VBox->new(0, 0);
+  $listwin->add($winbox);
+  $scroll = Gtk2::ScrolledWindow->new;
+  $winbox->add($scroll);
+  $scroll->set_border_width(5);
+  $scroll->set_policy("automatic", "automatic");
+  $vbox = new Gtk2::VBox(0, 0);
+  $scroll->add_with_viewport($vbox);
+  for my $file (sort {order($a) <=> order($b)} @flist)
+  {
+    my $title = defined $truenames{$file} ? $truenames{$file} : $file;
+    my $label = Gtk2::Label->new($title);
+    my $cmark = Gtk2::Image->new_from_pixbuf(create_pic("tools/ar_r.png"));
+    my $hbox = new Gtk2::HBox(0, 0);
+    $hbox->pack_start($cmark, 0, 0, 0);
+    $hbox->pack_start($label, 0, 0, 0);
+    my $button = new Gtk2::ToggleButton();
+    $button->add($hbox);
+    $listwin->{tooltips}->set_tip($button, $file, undef);
+    $button->signal_connect(clicked => sub { toggle_form($file); });
+    $vbox->pack_start($button, 0, 1, 0);
+    $toggles{$file} = $button;
+  }
+  $hbox = Gtk2::HBox->new(0,0);
+  $tools = Gtk2::Toolbar->new;
+  $hbox->pack_start($tools, 0, 0, 0);
+  $tools->set_style("icons");
+  create_tool($tools,"Close List of Displays","kpic/view_remove.png",
+              sub { toggle_form_list(0); });
+  create_tool($tools,"Open Root Display","tools/tree.png",
+              sub { activate_form($root_display); });
+  $tools = Gtk2::Toolbar->new;
+  $hbox->pack_end($tools, 0, 0, 0);
+  $tools->set_style("icons");
+  create_tool($tools,"Quit Viewer","kpic/exit.png",
+              sub { exit_forms(); });
+  $winbox->pack_end($hbox, 0, 0, 0);
+  $listwin->set_default_size(300, 600);
+  $listwin->show_all;
+  Optikus::Forms::Util::set_window_icon($listwin, "kpic/frame_spreadsheet.png");
+}
+
+sub exit_forms
+{
+  run_dialog("Quit all Displays ?", "Quit all displays ?",
+             sub { Gtk2->main_quit; });
+  return 0;
+}

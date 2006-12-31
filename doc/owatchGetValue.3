@@ -1,0 +1,41 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHGETVALUE" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchGetValue \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchGetValue (ooid_t \fR\fB\fIooid\fR\fR\fB, oval_t *\fR\fB\fIpvalue\fR\fR\fB, char *\fR\fB\fIdata_buf\fR\fR\fB, int \fR\fB\fIbuf_len\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This non\-blocking routine stores the last received value of the data sample with given identifier in the user buffer of the \fBoval_t\fR type.
+.sp
+If the identifier is not registered, the routine returns \fIERROR\fR. If identifier is registered, and values were received from containing subject at least once, the routine returns \fIOK\fR.
+.sp
+On success the routine fills the following fields of the pvalue structure: \fItype\fR, \fIlen\fR, \fIundef\fR, \fIv\fR, \fItime\fR. Meaning of the fields is described on the \fBowatchAddDataHandler()\fR page.
+.sp
+For all data types but strings, the \fIdata_buf\fR and \fIbuf_len\fR arguments are ignored, and the value is returned right in the \fIpvalue\fR fields.
+.sp
+For passing strings a user buffer is required, the \fIdata_buf\fR argument should give its address and \fIbuf_len\fR should give its length. If the buffer address is not null and the size is enough to hold the value, the string is copied in the buffer, its address is stored in the \fIv.v_str\fR field of the \fIpvalue\fR structure, and its length including trailing zero is stored in the \fIlen\fR field. Otherwise, all informational fields of the \fBoval_t *\fR\fB\fIpvalue\fR\fR structure will be correctly filled, the string length will be stored in the \fIlen\fR field, but \fIv.v_str\fR will be filled with null pointer and the routine will return \fIOK\fR. This behavior can be used to find the enough string buffer size. Also, this routine can be helpful to find the actual monitored data type.
+.sp
+.SH "NOTE"
+In the current version of the library the \fItime\fR field is not used and is always equal to zero.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

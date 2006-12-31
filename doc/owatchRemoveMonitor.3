@@ -1,0 +1,33 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHREMOVEMONITOR" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchRemoveMonitor \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchRemoveMonitor (ooid_t \fR\fB\fIooid\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+This routine deactivates monitoring of the data sample with given identifier. If monitoring was registered several times, the routine decrements internal data reference counter and actually deactivates monitoring only when the counter reaches zero.
+.sp
+.SH "RETURN VALUE"
+On success returns \fIOK\fR. If monitoring with given identifier has not been registered, returns \fIERROR\fR. If at the time of call the data sample search operation has not yet completed, it is aborted and the routine returns \fIOK\fR.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

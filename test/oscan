@@ -1,0 +1,2940 @@
+#!/usr/bin/perl -w
+# -*-perl-*-    vi: set ts=4 sw=4 :
+#
+#  Copyright (C) 2006-2007, vitki.net. All rights reserved.
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#  $Date$
+#  $Revision$
+#  $Source$
+#
+#  OSCAN
+#  Parser of object file dumps.
+#
+
+use strict;
+use FindBin qw[$Bin];
+use Cwd 'abs_path';
+BEGIN { $ENV{OPTIKUS_HOME} = abs_path("$Bin/..") unless $ENV{OPTIKUS_HOME}; }
+use lib "$ENV{OPTIKUS_HOME}/bindings/perl/lib";
+use lib "$ENV{OPTIKUS_HOME}/lib/perl5/site_perl";
+
+use Optikus::Ini;
+use Optikus::Pretty;
+use Optikus::CmdLine;
+use Optikus::Utils ':all';
+
+my $version = "0.1";
+my $copyright = "oscan $version\nCopyright (C) 2006-2007, vitki.net\n";
+
+my %options  = ();
+
+my $MAX_MUL = 4192;
+my $MAX_KEY = 16384;
+
+# ===============================
+#              LOG
+# ===============================
+
+my (%msg_qty, %tracing, $file_log);
+
+# print log message
+sub logMsg
+{
+  my ($kind, $realm, $msg) = @_;
+  my $k = lc(substr($kind,0,1));
+  $msg = "<$msg>" if $msg =~ m/^\s+/ or $msg =~ m/\s+$/ or !$msg;
+  my $tm = $options{NO_LOG_TIME} ? "now" : timeNow();
+  my $pos = "";
+  $pos = "[".inputLine()."]" if $options{LOG_INPUT_POS};
+  my $str;
+  if ($k eq 'i') {
+    $msg_qty{info}++;
+    $str = "INFO ($tm)[$realm]$pos: $msg";
+  } elsif ($k eq 'd') {
+    $msg_qty{debug}++;
+    return if $realm eq "files";
+    return if $realm eq "TYPEDEF-WARN";
+    $str = "DEBUG($tm)[$realm]$pos: $msg";
+  } elsif ($k eq 'w') {
+    $msg_qty{warn}++;
+    $str = "WARN ($tm)[$realm]$pos: $msg";
+  } elsif ($k eq 'e') {
+    $msg_qty{error}++;
+    $str = "ERROR($tm)[$realm]$pos: $msg";
+  } else {
+    die "unknown log message kind '$kind'($k)\n";
+  }
+  print LOG "$str\n" if $file_log;
+  print STDOUT "$str\n" if $k eq 'i' or not $file_log;
+}
+
+sub logOpen
+{
+  my $log = shift;
+  $msg_qty{info} = $msg_qty{debug} = $msg_qty{'warn'} = $msg_qty{error} = 0;
+  $file_log = 0;
+  if (defined($log) and $log ne '')  {
+    $log = "conversion.log" if $log eq 'file';
+    my $mode = ">>";
+    $mode = ">" if $options{RESET_LOG};
+    open (LOG, "$mode $log") or die "cannot append log to $log\n";
+    $file_log = 1;
+  }
+}
+
+sub logClose
+{
+  close(LOG);
+  $file_log = 0;
+}
+
+sub traceOpen
+{
+  my $trace = shift;
+  $tracing{'log'} = $tracing{add} = 0;
+  return unless defined($trace) and $trace ne "";
+  if ($trace eq 'log')  {
+    $tracing{'log'} = 1;
+  } else {
+    $trace = "trace_db.log" if $trace eq 'file' or $trace eq 'add';
+    open (TRACE, "> $trace") or die "cannot write trace to $trace\n";
+    $tracing{add} = 1;
+  }
+}
+
+sub traceClose
+{
+  close (TRACE) if $tracing{add};
+  $tracing{add} = $tracing{'log'} = 0;
+}
+
+# ===============================
+#             SCHEMA
+# ===============================
+
+sub initSchema
+{
+  initSources();
+  initTatoms();
+  initRecords();
+  initTypedefs();
+  initProcedures();
+  initGlobals();
+  initEnums();
+  initQuarks();
+}
+
+#    *** SOURCES ***
+
+my (@src_files, %src_hash, $src_cur_key, $src_cur_path, $src_line);
+
+sub initSources
+{
+  @src_files = ();
+  %src_hash = ();
+  $src_cur_key = $src_line = 0;
+  $src_cur_path = "";
+}
+
+sub srcSetPosition
+{
+  ($src_cur_path, $src_line) = @_;
+  $src_cur_key = 0;  # calculate later
+}
+
+my ($sources_cwd, $sources_prefix);
+
+sub setupSourcePrefixes
+{
+  $sources_cwd = $options{SOURCES_CWD};
+  $sources_prefix = $options{SOURCES_PREFIX};
+}
+
+sub srcKey
+{
+  if ($src_cur_key == 0)  {
+    $src_cur_path = "$sources_cwd/$src_cur_path"
+      unless $src_cur_path =~ m/^\//;
+    $src_cur_path =~ s{[^\/]+\/\.\./([^\/]+)}{$1}
+      while $src_cur_path =~ m/[^\/]+\/\.\.\/[^\/]+/;
+    $src_cur_path =~ s{^$sources_prefix/}{/_root_/};
+    $src_cur_key = $src_hash{$src_cur_path};
+    unless ( $src_cur_key )  {
+      $src_cur_key = $#src_files + 1;
+      my $sd = { path=>$src_cur_path, no=>$src_cur_key };
+      $src_hash{$src_cur_path} = $src_cur_key;
+      push @src_files, $sd;
+      logMsg('debug',"TRACE", "SOURCE > \@$sd->{no} $sd->{path}")
+        if $tracing{'log'};
+      print TRACE "SOURCE > \@$sd->{no} $sd->{path}\n"
+        if $tracing{add};
+    }
+  }
+  return $src_cur_key;
+}
+
+#    *** TATOMS ***
+
+my (@tatoms, $tatom_key);
+
+sub initTatoms
+{
+  @tatoms = ();
+  $tatom_key = 0;
+}
+
+sub addTatom
+{
+  my $ta = shift;
+  $ta->{key} = ++$tatom_key;
+  push @tatoms, $ta;
+  return $ta->{key};
+}
+
+sub newTatom
+{
+  my $tatom = {
+    key   => 0,
+    kind  => '-', # kind  - meta-type: B=basic type, T=named type (typedef),
+                  #                   E=enumeration, S=structure, U=union.
+    ptr   => '-', # ptr   - type of pointer: D=direct, I=indirect,
+                  #                        R=reference, P=pointer.
+    type  => "-", # type  - type name for named types or "-" otherwise.
+    alloc => '-', # alloc - allocation: S=static, A=auto, R=register.
+    cname => "-", # cname - aggregate type name for "E,S,U" or "-" otherwise.
+    cid   => 0,   # cid   - identifier of aggregate type for "S,U" or 0 otherwise.
+    dim0 => 0, dim1 => 0, dim2 => 0, dim3 => 0  # dimensions for arrays.
+  };
+  return $tatom;
+}
+
+sub setTatom
+{
+  # setTatom(tatom,dim,ptr,kind,type,cname,cid)
+  #print STDERR ("setTatom(tatom,dim=\"$_[1]\",ptr=\"$_[2]\",kind=\"$_[3]\",type=\"$_[4]\",cname=\"$_[5]\",cid=\"$_[6]\")\n");
+  my $ta  = shift;
+  my $dim = shift;
+  ($ta->{ptr}, $ta->{kind}, $ta->{'type'}, $ta->{cname}, $ta->{cid}) = @_;
+  if (defined($dim) and $dim ne '')  {
+    my $i = 0;
+    foreach my $d (split(',',$dim))  {
+      $ta->{"dim$i"} = $d;
+      $i++;
+    }
+    die "not 4 dimensions in array\n" if $i != 4;
+  } else {
+    $ta->{dim0} = $ta->{dim1} = $ta->{dim2} = $ta->{dim3} = 0;
+  }
+}
+
+sub tatom2str
+{
+  my $ta = shift;
+  return "NULL-TATOM!" unless defined($ta);
+  my $s = "";
+  $s .= "\#$ta->{key}";
+  $s .= ":[$ta->{kind}";
+  $s .= ",$ta->{ptr}";
+  $s .= ",\"$ta->{type}\"";
+  $s .= ",$ta->{alloc}]";
+  $s .= ":\"$ta->{cname}\"";
+  $s .= ":$ta->{cid}";
+  $s .= ":[$ta->{dim0},$ta->{dim1},$ta->{dim2},$ta->{dim3}]";
+  return $s;
+}
+
+sub tatomEquals
+{
+  my $ta1 = shift;
+  my $ta2 = shift;
+  foreach my $i (0..3)  {
+    return 0 if ($ta1->{"dim$i"} != $ta2->{"dim$i"});
+  }
+  return 1 if (    $ta1->{ptr} eq $ta2->{ptr} and $ta1->{kind} eq $ta2->{kind}
+               and $ta1->{alloc} eq $ta2->{alloc} and $ta1->{type} eq $ta2->{type}
+               and $ta1->{cname} eq $ta2->{cname} and $ta1->{cid} == $ta2->{cid});
+  return 0;
+}
+
+#    *** RECORDS ***
+
+my (@records, %bad_records, $dup_recs_qty, $rec_key, $rec_item_key);
+
+sub initRecords
+{
+  @records = ();
+  %bad_records = ();
+  $dup_recs_qty = 0;
+  $rec_key = $rec_item_key  = 0;
+}
+
+sub addRecord
+{
+  my $rd = shift;
+  if ($options{AUTO_PACK})  {
+    foreach my $ird (@records)  {
+      next unless $ird->{cname} eq $rd->{cname};
+      if ($ird->{cid} eq $rd->{cid}
+          and $ird->{size} == $rd->{size}
+          and $ird->{at} eq $rd->{at}
+          and $ird->{level} == $rd->{level}
+          and $#{$ird->{items}} == $#{$rd->{items}}
+         )  {
+        #logMsg ('debug', "RECORDS", "repeater $rd->{cname}");
+        $dup_recs_qty++;
+        return $rd->{key};
+      } elsif ( !exists($bad_records{$rd->{cname}}) ) {
+        unless ( $options{NO_WARN_DUPLICATES} )  {
+          logMsg ('warn', "RECORDS", "Duplicate inconsistent record \"$rd->{cname}\"");
+          logMsg ('warn', "RECORDS", "+ previus: ".rec2msg($ird));
+          $rd->{key} = -1 if !defined($rd->{key});
+          logMsg ('warn', "RECORDS", "+ current: ".rec2msg($rd));
+        }
+        $bad_records{$rd->{cname}} = 1;
+        last;
+      }
+    }
+  }
+  $rd->{key} = ++$rec_key;
+  foreach my $rid (@{$rd->{items}}) {
+    $rid->{rec_ikey} = $rec_key;
+    $rid->{key} = ++$rec_item_key;
+    $rid->{ta_ikey} = addTatom($rid->{tatom});
+  }
+  push @records, $rd;
+  if ($tracing{add})  {
+    print TRACE "RECORD > #$rd->{key} $rd->{kind} $rd->{cname} $rd->{cid} "
+             ."$rd->{size} $rd->{at} $rd->{level} \@$rd->{src}\n";
+    foreach my $rid (@{$rd->{items}})  {
+      print TRACE "RECORD - \#$rid->{key}/$rid->{rec_ikey}"
+               ." $rid->{name} $rid->{bsize} $rid->{bpos} \*$rid->{ta_ikey} "
+               .tatom2str($rid->{tatom})."\n";
+    }
+  }
+  return $rd->{key};
+}
+
+sub rec2msg
+{
+  my $r = shift;
+  my $s = "";
+  $s .= "key=\#$r->{key} ";
+  $s .= "kind=$r->{kind} ";
+  $s .= "name=\"$r->{cname}\" ";
+  $s .= "id=$r->{cid} ";
+  $s .= "size=$r->{size} ";
+  $s .= "at=\"$r->{at}\" ";
+  $s .= "level=$r->{level} ";
+  $s .= "src=\@$r->{src}";
+  return $s;
+}
+
+#    *** TYPEDEFS ***
+
+my (@typedefs, %typedefs_byname, %bad_typedefs);
+my ($dup_typedefs_qty, $typedef_key);
+
+sub initTypedefs
+{
+  @typedefs = ();
+  %typedefs_byname = ();
+  %bad_typedefs = ();
+  $dup_typedefs_qty = $typedef_key = 0;
+}
+
+sub addTypedef
+{
+  my $td = shift;
+  if ($options{AUTO_PACK})  {
+    foreach my $itd (@typedefs)  {
+      next unless $itd->{name} eq $td->{name};
+      if ( $td->{name} eq $itd->{name}
+           and tatomEquals($td->{tatom},$itd->{tatom}) )  {
+        #logMsg ('debug', "TYPEDEFS", "repeater $td->{name}");
+        $dup_typedefs_qty++;
+        return $itd->{key};
+      } elsif ( !exists($bad_typedefs{$td->{name}}) )  {
+        $bad_typedefs{$td->{name}} = 1;
+        unless ( $options{NO_WARN_DUPLICATES} )  {
+          logMsg('warn', "TYPEDEFS", "Duplicate inconsistent typedef \"$td->{name}\"");
+          logMsg('warn', "TYPEDEFS", "+ current: ".typedef2str($td));
+          logMsg('warn', "TYPEDEFS", "+ previus: ".typedef2str($itd));
+        }
+        last;
+      }
+    }
+  }
+  $td->{key} = ++$typedef_key;
+  $td->{ta_ikey} = addTatom($td->{tatom});
+  push @typedefs, $td;
+  $typedefs_byname{$td->{name}} = $td;
+  print TRACE "TYPEDEF > ".typedef2str($td)."\n" if $tracing{add};
+  return $td->{key};
+}
+
+sub typedef2str
+{
+  my $td = shift;
+  my $s = "";
+  $s .= defined($td->{key}) ? "\#$td->{key} " : "\#NULL-KEY! ";
+  $s .= defined($td->{name}) ? "$td->{name} " : "NULL-NAME! ";
+  $s .= defined($td->{ta_ikey}) ? "\*$td->{ta_ikey} " : "\*NULL-TATOM! ";
+  $s .= tatom2str($td->{tatom});
+  $s .= defined($td->{src}) ? " \@$td->{src}" : "\@NULL-SOURCE!";
+  return $s;
+}
+
+#    *** PROCEDURES ***
+
+my (@procs, $proc_key, $proc_param_key);
+
+sub initProcedures
+{
+  @procs = ();
+  $proc_key = $proc_param_key = 0;
+}
+
+sub addProc
+{
+  my $pd = shift;
+  $pd->{key} = ++$proc_key;
+  $pd->{ta_ikey} = addTatom($pd->{tatom});
+  foreach my $ppd (@{$pd->{params}})  {
+    $ppd->{key} = ++$proc_param_key;
+    $ppd->{ta_ikey} = addTatom($ppd->{tatom});
+    $ppd->{proc_ikey} = $pd->{key};
+  }
+  push @procs, $pd;
+  if ( $tracing{add} )  {
+    print TRACE "PROC > \#$pd->{key} $pd->{name} "
+             .num2hex($pd->{adr})." \*$pd->{ta_ikey} "
+             .tatom2str($pd->{tatom})." \@$pd->{src}\n";
+    foreach my $ppd (@{$pd->{params}})  {
+      print TRACE "PROC + \#$ppd->{key}/$ppd->{proc_ikey} $ppd->{name} "
+               .num2hex($ppd->{adr})." \*$ppd->{ta_ikey} "
+               .tatom2str($ppd->{tatom})."\n";
+    }
+  }
+  return $pd->{key};
+}  
+
+#    *** GLOBALS ***
+
+my (@globals, $global_key);
+
+sub initGlobals
+{
+  @globals = ();
+  $global_key = 0;
+}
+
+sub addGlobal
+{
+  my $gd = shift;
+  $gd->{key} = ++$global_key;
+  $gd->{ta_ikey} = addTatom($gd->{tatom});
+  push @globals,$gd;
+  print TRACE "GLOBAL > ".glob2str($gd)."\n" if $tracing{add};
+}
+
+sub glob2str
+{
+  my $gd = shift;
+  return "\#$gd->{key} $gd->{name} "
+         .num2hex($gd->{adr})." \*$gd->{ta_ikey} "
+         .tatom2str($gd->{tatom})." \@$gd->{src}";
+}
+
+#    *** ENUMS ***
+
+my (@enums, %bad_enums, $dup_enums_qty, $enum_key, $enum_item_key, $anon_enum_count);
+
+sub initEnums
+{
+  @enums = ();
+  %bad_enums = ();
+  $dup_enums_qty = $enum_key = $enum_item_key = $anon_enum_count = 0;
+}
+
+sub addEnum
+{
+  my $ed = shift;
+  if ($options{AUTO_PACK})  {
+    foreach my $ied (@enums)  {
+      next unless $ed->{name} eq $ied->{name};
+      if ( $#{$ed->{items}} == $#{$ied->{items}} )   {
+        #logMsg ('debug', "ENUMS", "repeater $ed->{name}");
+        $dup_enums_qty++;
+        return $ied->{key};
+      } elsif ( !exists($bad_enums{$ed->{name}}) )  {
+        unless ( $options{NO_WARN_DUPLICATES} )  {
+          logMsg('warn', "ENUMS", "Duplicate inconsistent enum \"$ed->{name}\"");
+        }
+        $bad_enums{$ed->{name}} = 1;
+        last;
+      }
+    }
+  }
+  $ed->{key} = ++$enum_key;
+  foreach my $eid (@{$ed->{items}})  {
+    $eid->{enum_ikey} = $ed->{key};
+    $eid->{key} = ++$enum_item_key;
+  }
+  push @enums, $ed;
+  if ($tracing{add})  {
+    print TRACE "ENUM > \#$ed->{key} $ed->{name} \@$ed->{src}\n";
+    foreach my $eid (@{$ed->{items}})  {
+      print TRACE "ENUM - \#$eid->{key}/$eid->{enum_ikey} "
+                  ."$eid->{name} $eid->{value}\n";
+    }
+  }
+  return $ed->{key};
+}
+
+#    *** QUARKS ***
+
+my (@quarks, %quarks_byname, $quark_key);
+
+sub initQuarks
+{
+  @quarks = ();
+  %quarks_byname = ();
+  $quark_key = 0;
+}
+
+sub newQuark
+{
+  my $p = { ukey => 0, ikey => 0, path => '', adr => 0, off => 0, len => 0,
+            ptr => '-', 'type' => '-', bit_off => 0, bit_len => 0,
+            dims0 => 0, dims1 => 0, dims2 => 0, dims3 => 0, n_dims => 0,
+            coef0 => 0, coef1 => 0, coef2 => 0, coef3 => 0, n_coef => 0,
+            obj_seg => '-', obj_ikey => 0, glob_ikey => 0,
+            rec_name => '', rec_lev => 0,
+            dim_last => 0, rec_bits => 0 };
+  return $p;
+}
+
+sub copyQuark
+{
+  my $d = shift;
+  my $p = { %{$d} };
+  return $p;
+}
+
+sub addQuark
+{
+  my $cd = shift;
+  $cd = { %{$cd} };
+  $cd->{ikey} = ++$quark_key;
+  my $name = $cd->{path};
+  if ( exists($quarks_byname{$name}) )  {
+    unless ($name =~ m/\:\w+\!$/)  {
+      logMsg ('warn', "QUARKS", "duplicate quark name \"$name\"");
+      push @quarks, $cd;
+    }
+  } else {
+    push @quarks, $cd;
+    $quarks_byname{$name} = $cd;
+  }
+  print TRACE "QUARK > ".quark2str($cd)."\n" if $tracing{add};
+}
+
+sub quark2str
+{
+  my $cd = shift;
+  my $s = "";
+  $s .= "\#$cd->{ikey}";
+  $s .= " \"$cd->{path}\"";
+  $s .= " $cd->{ptr}:$cd->{type}";
+  $s .= " \@".num2hex($cd->{adr});
+  $s .= " \+$cd->{off},$cd->{len}";
+  $s .= " b\+$cd->{bit_off},$cd->{bit_len}\($cd->{rec_bits}\)";
+  $s .= " \[$cd->{coef0},$cd->{coef1},$cd->{coef2},$cd->{coef3}\]";
+  $s .= " \[$cd->{dims0},$cd->{dims1},$cd->{dims2},$cd->{dims3}\]";
+  my $gk = $cd->{glob_ikey};
+  $gk = 0 unless defined($gk);
+  $s .= " \*$gk";
+  return $s;
+}
+
+sub quark2msg
+{
+  my $cd = shift;
+  return quark2str($cd)." nd=".$cd->{n_dims}." nc=".$cd->{n_coef}
+         ." dlf=".$cd->{dim_last}."";
+}
+
+# ===============================
+#         INPUT / OUTPUT
+# ===============================
+
+my ($input_char_cnt, $input_char_qty, $input_line_cnt, $input_line_qty);
+my ($prev_left, $prev_full, $input_init_sec);
+my ($show_progress, $progress_step);
+my $line;
+
+# report transformation progress
+sub showProgress
+{
+  return unless $show_progress;
+  my $opt = shift;
+  $opt = 'none' unless defined($opt);
+  ($input_char_cnt,$input_line_cnt,$prev_left) = ($input_char_qty,$input_line_qty,0)
+    if $opt eq 'finish';
+  my $ratio = $input_char_cnt * 100 / $input_char_qty;
+  $ratio = 100 if $ratio > 100;
+  my $cur_sec = time - $input_init_sec;
+  $cur_sec = 1 if $cur_sec < 1;
+  my $full_sec = $ratio < 1 ? $cur_sec : $cur_sec * 100 / $ratio;
+  my $cur_full = ($prev_full * 4 + $full_sec * 1) / 5;
+  my $left = $cur_full - $cur_sec;
+  $left = 0 if $left < 0;
+  my $cur_left = ($prev_left * 4 + $left * 1) / 5;
+  my $s = sprintf("ready %3d%%, %3dk of %3dk lines, left %3ds of %3ds",
+                  $ratio, ($input_line_cnt+500)/1000, ($input_line_qty+500)/1000,
+                  $cur_left, $cur_full);
+  ($prev_full, $prev_left) = ($cur_full, $cur_left);
+  $s = pack("A50",$s);
+  print STDERR "\rPASS: $s.";
+  print STDERR "\n" if $opt eq 'finish';
+}
+
+# open input file. count number of lines and characters.
+sub initInput
+{
+  my $file_name = shift;
+  $input_line_qty = $input_line_cnt = 0;
+  $input_char_qty = $input_char_cnt = 0;
+  $prev_left = $prev_full = 0;
+  $line = "";
+  open(TMP, $file_name) or die "Cannot open input $file_name\n";
+  while(<TMP>)  {
+    $input_line_qty++;
+    $input_char_qty += length;
+  }
+  close TMP;
+  $input_line_qty = 1 if $input_line_qty < 1;
+  $input_char_qty = 1 if $input_char_qty < 1;
+  $input_init_sec = time;
+  $show_progress = $options{SHOW_PROGRESS};
+  $progress_step = $options{PROGRESS_STEP};
+  $progress_step = 1000 unless defined($progress_step) and $progress_step > 0;
+}
+
+# get next line.
+# replaces the <SRC> routine. SRC is assumed the input file.
+# information about source code and procedure bodies are skipped.
+# for each procedure only the line: "{:x" addr-proc-hex "}\n" is returned.
+# the line is returned in $_. data, when available, is returned in $_.
+# at the end of file the empty line is returned.
+sub nextLine
+{
+  while(<SRC>)  {
+    chop; chomp;
+    $input_line_cnt++; $input_char_cnt += length;
+    showProgress() if $input_line_cnt % $progress_step == 0;
+    $line = $_;
+    study $line;
+    # filter out information about source code.
+    if( $line =~ m/^\s*\/\*\sfile\s(\S+)\sline\s(\d+)\saddr\s(\S+)\s\*\/\s*$/ )  {
+      # information about the location in the source file.
+      srcSetPosition($1, $2);
+      next;
+    } elsif ( $line =~ m/^(\.\.)?(\/\S+)+\S+\s+file\s+format\s+.*$/ ) {
+      # information about object module format.
+      next;
+    } elsif ( $line =~ m/^\s?((?:(?:\.\.)?\/\S+)+\S+):$/ )  {
+      # source file name alone.
+      srcSetPosition($1, 0);
+      next;
+    } elsif ( $line =~ m/^\s?([\w\.\-\d]+):$/ )  {
+      # source file name alone (another representation).
+      srcSetPosition($1, 0);
+      next;
+    } elsif ( $line =~ m/^\s*$/ )  {
+      next;
+    }
+    # filter out procedure bodies.
+    if( $line =~ m[\{ /\* 0x(\w+) \*/] )  {
+      $line = "{:zx$1}";
+      while (<SRC>)  {
+        chop; chomp;
+        $input_line_cnt++; $input_char_cnt += length;
+        showProgress() if $input_line_cnt % $progress_step == 0;
+        next unless /^\} \/\* 0x\w+ \*\/$/;
+        #logMsg('debug',"IN-PROC",$line);
+        return 1;
+      }
+    }
+    abbrevKeyword(); # useful abbreviations.
+    study $line;
+    #logMsg('debug',"IN",$line);
+    return 1;
+  }
+  $line = "";
+  return 0;
+}
+
+# line number
+sub inputLine
+{
+  return $input_line_cnt;
+}
+
+# useful abbreviations that greatly simplify parsing afterwards.
+sub abbrevKeyword
+{
+  $line =~ s{\blong long unsigned int\b}{:Q:}g;
+  $line =~ s{\blong long int\b}{:q:}g;
+  $line =~ s{\bshort unsigned int\b}{:H:}g;
+  $line =~ s{\blong unsigned int\b}{:L:}g;
+  $line =~ s{\bunsigned int\b}{:I:}g;
+  $line =~ s{\bshort int\b}{:h:}g;
+  $line =~ s{\blong int\b}{:l:}g;
+  $line =~ s{\bunsigned char\b}{:B:}g;
+  $line =~ s{\bsigned char\b}{:b:}g;  # bytes are assumed signed.
+  $line =~ s{\bint\b}{:i:}g;
+  $line =~ s{\bchar\b}{:b:}g;
+  $line =~ s{\bfloat\b}{:f:}g;
+  $line =~ s{\blong double\b}{:D:}g;
+  $line =~ s{\bdouble\b}{:d:}g;
+  $line =~ s{\bvoid\b}{:v:}g;
+  # aggregate types.
+  $line =~ s{\benum\b}{:E:}g;
+  $line =~ s{\bunion\b}{:U:}g;
+  $line =~ s{\bstruct\b}{:S:}g;
+  # sizes, offsets, identifiers.
+  $line =~ s{\/\* bitsize (\d+), bitpos (\d+) \*\/}{:zb$1: :zp$2:}g;
+  $line =~ s{\/\* bitsize (0x[\da-fA-F]+), bitpos (0x[\da-fA-F]+) \*\/}
+            {":zb".hex($1).": :zp".hex($2).":"}eg;
+  $line =~ s{\/\* id (\d+) \*\/}{:zi$1:}g;
+  $line =~ s{\/\* id (0x[\da-fA-F]+) \*\/}{":zi".hex($1).":"}eg;
+  $line =~ s{\/\* size (\d+) id (\d+) \*\/}{:zs$1: :zi$2:}g;
+  $line =~ s{\/\* size (0x[\da-fA-F]+) id ([\da-fA-F]+) \*\/}
+            {":zs".hex($1).": :zi".hex($2).":"}eg;
+  $line =~ s{\/\* size (\d+) \*\/}{:zs$1:}g;
+  $line =~ s{\/\* size (0x[\da-fA-F]+) \*\/}{":zs".hex($1).":"}eg;
+  # addresses.
+  $line =~ s{\/\* 0x([0-9a-fA-F]+) \*\/}{:zx$1:}g;
+  # some "aggregate/basic" types.
+  $line =~ s{complex :(\w):}{:C.$1:}g;
+}
+
+# ===============================
+#            PARSING
+# ===============================
+
+my ($rec_dbg, $enum_dbg);
+
+my %ptr_nodim_str = ( '' => 'D', '*' => 'I', '**' => 'P' );
+my (%tatom_stat, $tatom_stat_flag);
+
+# parse type-element (variable, type, attribute) descriptions.
+# the input is formatted as a declaration in C syntax as:
+#  definition ::= allocation type pointers
+#                  name dimenstions ending
+#    allocation ::= [ "static" | "auto" (^) | "register" ]
+#    type ::= basic | named | aggregate | enumeration
+#      basic ::= ":" sign-of-basic-type ":"
+#      named ::= type-identifier-as-string
+#      aggregate ::= ( structure-sign | union-sign ) aggregate-identifier
+#        structure-sign ::= ":S:"
+#        union-sign ::= ":U:"
+#        aggregate-identifier ::= "i:" numeric-identifier ":"
+#      enumaration ::= ":E:" aggregate-identifier-as-string
+#    pointers ::= [ "*" [ "*" ... ] ]
+#    name ::= type-element-identifier-as-string
+#    dimenstions ::= [ "[" number "]" [ "[" number "]" ... ] ]
+#    ending ::= [ ";" ]
+sub parseTatom
+{
+  # public StatusCode parseTatom(String def, TypeDesc td)
+  my ($d,$ta) = @_;
+  my $ptr;
+  # trim leading and trailing whitespace and trailing comment sign
+  $d =~ s/^\s+//;
+  $d =~ s/\s*\;?\s*$//;
+  # strip off comments (in particular, in procedure references).
+  $d =~ s{\s*\/\*.*?(?=\*\/)\*\/\s*}{};
+  # handle allocation description.
+  my $alloc = 'A';
+  if    ($d =~ m/^auto\s+/)      { $alloc = 'A'; $d =~ s{^auto\s+}{}; }
+  elsif ($d =~ m/^static\s+/)    { $alloc = 'S'; $d =~ s{^static\s+}{}; }
+  elsif ($d =~ m/^register\s+/)  { $alloc = 'R'; $d =~ s{^register\s+}{}; }
+  # handle array descriptions.
+  if ( $d =~ m/\[\D+\]/ )  {
+    # invalid array description.
+    return "!BAD-ARRAY";
+  }
+  if ( $d =~ m/(\[\d+\]){5,}/ )  {
+    # arrays with more than 4 dimenstions are not supported.
+    return "!BIG-ARRAY";
+  }
+  $ta->{'alloc'} = $alloc;
+  # short form of array description.
+  study $d;
+  if ( $d =~ m/\[/ )  {
+    $d =~ s{\[(\d+)\]\[(\d+)\]\[(\d+)\]\[(\d+)\]}{\[$1,$2,$3,$4\]}g;
+    $d =~ s{\[(\d+)\]\[(\d+)\]\[(\d+)\]}{\[$1,$2,$3,0\]}g;
+    $d =~ s{\[(\d+)\]\[(\d+)\]}{\[$1,$2,0,0\]}g;
+    $d =~ s{\[(\d+)\]}{\[$1,0,0,0\]}g;
+    $d =~ s{\[(0x[\da-fA-F]+)\]\[(0x[\da-fA-F]+)\]\[(0x[\da-fA-F]+)\]\[(0x[\da-fA-F]+)\]}
+           {'['.hex($1).','.hex($2).','.hex($3).','.hex($4).']'}eg;
+    $d =~ s{\[(0x[\da-fA-F]+)\]\[(0x[\da-fA-F]+)\]\[(0x[\da-fA-F]+)\]}
+           {'['.hex($1).','.hex($2).','.hex($3).',0]'}eg;
+    $d =~ s{\[(0x[\da-fA-F]+)\]\[(0x[\da-fA-F]+)\]}{'['.hex($1).','.hex($2).',0,0]'}eg;
+    $d =~ s{\[(0x[\da-fA-F]+)\]}{'['.hex($1).',0,0,0]'}eg;
+    study $d;
+  }
+  # parse different cases.
+  #print STDERR "point2: \"$d\"\n";
+  if     ( $d =~ m/^\:([^ESU])\: (\*{0,2})(\w+)$/ )  {
+    # [[double] pointer to] elementary scalar.
+    #$tatom_stat{basic_scalar}++ if $tatom_stat_flag;
+    setTatom($ta, '', $ptr_nodim_str{$2}, 'B', $1, '-', 0);
+    return $3;
+  } elsif( $d =~ m/^\:([SU])\: (\%?\w+)(?: \:zi(\d+)\:)? (\*{0,2})(\w+|\:C\.\w\:)$/ ) {
+    # [[double] pointer to] anonymous/ordinary record/elementary aggregate with[out] id
+    #$tatom_stat{record_scalar}++ if $tatom_stat_flag;
+    setTatom($ta, '', $ptr_nodim_str{$4}, $1, '-', $2, defined($3)?$3:0);
+    return $5;
+  } elsif( $d =~ m/^(\w+) (\*{0,2})(\w+)$/ )  {
+    # [[double] pointer to] scalar of named type.
+    #$tatom_stat{typed_scalar}++ if $tatom_stat_flag;
+    setTatom($ta, '', $ptr_nodim_str{$2}, 'T', $1, '-', 0);
+    return $3;
+  } elsif( $d =~ m/^\:([^ESU])\: (\*?)(\w+)\[([\d\,]+)\](?:\:uint32)*$/ )  {
+    # array of [pointers to] elementary scalars.
+    #$tatom_stat{basic_array}++ if $tatom_stat_flag;
+    setTatom($ta, $4, ($2 eq '*' ? 'I' : 'D'), 'B', $1, '-', 0);
+    return $3;
+  } elsif( $d =~ m/^(\w+) (\*?)(\w+)\[([\d\,]+)\](?:\:uint32)*$/ )  {
+    # array of [pointers to] scalars of named type.
+    #$tatom_stat{typed_array}++ if $tatom_stat_flag;
+    setTatom($ta, $4, ($2 eq '*' ? 'I' : 'D'), 'T', $1, '-', 0);
+    return $3;
+  } elsif( $d =~ m/^(?:\w+|\:[^ESU]\:|\:E\: \%?\w+|\:[SU]\: \%?\w+(?: \:zi\d+\:)?) \*{0,2}\(\*?(\w+)\) \(\)$/ )   {
+    # reference to the routine returning anything.
+    #$tatom_stat{routine_scalar}++ if $tatom_stat_flag;
+    setTatom($ta, '', 'D', 'B', 'p', '-', 0);
+    return $1;
+  } elsif( $d =~ m/^\:E\: (\%?\w+) (\*{0,2})(\w+)$/ ) {
+    # [[double] pointer to] anonymous/ordinary enumeration.
+    #$tatom_stat{enum_scalar}++ if $tatom_stat_flag;
+    setTatom($ta, '', $ptr_nodim_str{$2}, 'E', '-', $1, 0);
+    return $3;
+  } elsif( $d =~ m/^\:([SU])\: (\%?\w+)(?: \:zi(\d+)\:)? (\*?)(\w+)\[([\d\,]+)\](?:\:uint32)*$/ )  {
+    # array of [pointers to] anonymous/ordinary records with[out] id.
+    #$tatom_stat{record_array}++ if $tatom_stat_flag;
+    setTatom($ta, $6, ($4 eq '*' ? 'I' : 'D'), $1, '-', $2, defined($3)?$3:0);
+    return $5;
+  } elsif( $d =~ m/^(\w+) (\*?)(\w+)\[\]$/ )  {
+    # unsized array of [pointers to] named type scalars.
+    #$tatom_stat{unsized_typed_array}++ if $tatom_stat_flag;
+    setTatom($ta, '1,0,0,0', ($2 eq '*' ? 'I' : 'D'), 'T', $1, '-', 0);
+    return "!UNDIMED $3";
+  } elsif( $d =~ m/^\:([^ESU])\: (\*?)\(\*(\w+)\)\[([\d\,]+)\]$/ )  {
+    # reference to array of [pointers to] elementary scalars.
+    #$tatom_stat{basic_array_ref}++ if $tatom_stat_flag;
+    setTatom($ta, $4, ($2 eq '*' ? 'P' : 'R'), 'B', $1, '-', 0);
+    return $3;
+  } elsif( $d =~ m/^\:([^ESU])\: (\*?)(\w+)\[\]$/ )  {
+    # unsized array of [pointers to] elementary scalars.
+    #$tatom_stat{unsized_scalar_array}++ if $tatom_stat_flag;
+    setTatom($ta, '1,0,0,0', ($2 eq '*' ? 'I' : 'D'), 'B', $1, '-', 0);
+    return "!UNDIMED $3";
+  } elsif( $d =~ m/^(\w+) \&(\w+)$/ )  {
+    # reference by value to named type (as proc-param only).
+    #$tatom_stat{typed_byvalue}++ if $tatom_stat_flag;
+    setTatom($ta,'',"D","T",$1,"-","0");
+    return "!BYVALUE $2";
+  } elsif( $d =~ m/^\:([SU])\: (\%?\w+)(?: \:zi(\d+)\:)? (\*?)(\w+)\[\](?:\:uint32)*$/ )  {
+    # unsized array of [pointers to] anonymous/ordinary records with[out] id.
+    #$tatom_stat{unsized_record_array}++ if $tatom_stat_flag;
+    setTatom($ta, '1,0,0,0', ($4 eq '*' ? 'I' : 'D'), $1, '-', $2, defined($3)?$3:0);
+    return "!UNDIMED $5";
+  } elsif( $d =~ m/^(\w+) (\*?)\(\*(\w+)\)\[([\d\,]+)\]$/ )  {
+    # reference to array of [pointers to] named type scalars.
+    #$tatom_stat{typed_array_ref}++ if $tatom_stat_flag;
+    setTatom($ta, $4, ($2 eq '*' ? 'P' : 'R'), 'T', $1, '-', 0);
+    return $3;
+  } elsif( $d =~ m/^\:([SU])\: (\%?\w+)(?: \:zi(\d+)\:)? (\*?)\(\*(\w+)\)\[([\d\,]+)\]$/ )  {
+    # reference to array of [pointers to] anonymous/ordinary records.
+    #$tatom_stat{record_array_ref}++ if $tatom_stat_flag;
+    setTatom($ta, $6, ($4 eq '*' ? 'P' : 'R'), $1, '-', $2, defined($3)?$3:0);
+    return $5;
+  } elsif( $d =~ m/^\:E\: (\%?\w+) (\*?)(\w+)\[([\d\,]+)\]$/ )  {
+    # array of [pointers to] anonymous/ordinary enumerations.
+    #$tatom_stat{enum_array}++ if $tatom_stat_flag;
+    setTatom($ta, $4, ($2 eq '*' ? 'I' : 'D'), 'E', '-', $1, 0);
+    return $3;
+  } elsif( $d =~ m/^(?:\w+|\:[^ESU]\:|\:E\: \%?\w+|\:[SU]\: \%?\w+(?: \:zi\d+\:)?) \*{0,2}\(\*?(\w+)\[([\d\,]+)\]\) \(\)$/ )   {
+    # array of routine references returning anything.
+    #$tatom_stat{routine_array}++ if $tatom_stat_flag;
+    setTatom($ta, $2, 'D', 'B', 'p', '-', 0);
+    return $1;
+  } elsif( $d =~ m/^\:E\: (\%?\w+) (\*?)\(\*(\w+)\)\[([\d\,]+)\]$/ )  {
+    # reference to array of [pointers to] anonymous/ordinary enumerations.
+    #$tatom_stat{enum_array_ref}++ if $tatom_stat_flag;
+    setTatom($ta, $4, ($2 eq '*' ? 'P' : 'R'), 'E', '-', $1, 0);
+    return $2;
+  } else {
+    #$tatom_stat{unknown}++ if $tatom_stat_flag;
+    logMsg('error','TATOM-PARSE',"bad tatom desc \"$d\"");
+    return "!UNKNOWN";
+  }
+  #logMsg('error','TATOM-PARSE',"unknown error");
+  return "!ERROR";
+}
+
+# parse enumerations.
+# output: true=handled, false=more processing needed
+# in the output file each enumeration will be recorded as a line
+# in the following format:
+# > enumeration_name.
+# followed by one or more lines like:
+# - item_name item_value.
+sub attemptEnumeration
+{
+  my ($name, $body, $before, $after, @tok, $unnamed, $no, $ed, $s, $t);
+  my $work_flag = 0;
+  while ( $line =~ m/^(.*?)\s*:E:(?: (\%?\w+))? \{\s*(.*?)\s*\}\s*(.*?)$/ )  {
+    ($before, $name, $body, $after) = ($1, $2, $3, $4);
+    $unnamed = defined($name) ? 0 : 1;
+    $name = "\%__EA__".(++$anon_enum_count) if $unnamed;
+    @tok = split(/\s*,\s*/,$body);
+    $no = 0;
+    logMsg('debug',"TRACE","ENUM > $name ".srcKey()) if $tracing{'log'};
+    my $ed = { name=>$name, items=>[], src=>srcKey() };
+    foreach my $id (@tok)  {
+      if ( $id =~ /^\s*(\w+) = (\d+)\s*$/ ) {
+        ($id,$no)=($1,$2);
+        # no need to check for number
+      } elsif ( $id =~ /^\s*(\w+) = 0x([\da-fA-F]+)\s*$/ ) {
+        ($id,$s) = ($1,$2);
+        # hexadecimal number (beloved by binutils 2.14)
+        if ( $s =~ m/^ffffffff([89a-fA-F]{1}[0-9a-fA-F]{7})$/ ) {
+          $no = hex($1) - 4294967296; #0x100000000;
+        } else {
+          $no = hex($s);
+        }
+      }
+      logMsg('debug',"TRACE","ENUM - $id $no") if $tracing{'log'};
+      push @{$ed->{items}}, { name=>$id, value=>$no };
+      $no++;
+    }
+    addEnum($ed);
+    if ($before eq '' and $after eq ';')  {
+      logMsg('error',"ENUM-DEFINITION-IS-UNNAMED",$line) if $unnamed;
+      return 1;
+    }
+    logMsg('error',"ENUM-INLINE-IS-NAMED",$line) unless $unnamed;
+    logMsg('debug',"ENUM-SUBST-START", "$name \{$body\}") if $enum_dbg and !$work_flag;
+    logMsg('debug',"ENUM-SUBST-BEFORE", $line) if $enum_dbg;
+    $work_flag = 1;
+    $line = "$before :E: $name $after";
+    logMsg('debug',"ENUM-SUBST-AFTER",$line) if $enum_dbg;
+  }
+  logMsg('debug',"ENUM-SUBST-END", $name) if $enum_dbg and $work_flag;
+  return 0;
+}
+
+# parse structures and unions and record them in separate files.
+# open nested structure definitions.
+# in general, structures and unions are twins, with the exception
+# that in a structure offsets of first level elements increase,
+# and in a union they are zeros.
+# that is why structure and unions are unified as aggregates.
+# parameters:
+#   level - nesting depth, 0 - global level.
+#   type - aggregate type: structure or union.
+#   name - aggregate name.
+#   size - size in bits.
+#   id - numeric identifier.
+#   at - strcture name, at the global level "-".
+sub recordLevel
+{
+  my ($rd, $display, $sbrk) = @_;
+  my ($ebrk, $after, $def, $bsize, $bpos);
+  # parse structure (or global level).
+  # input stream contains lines describing the sturcture.
+  while( nextLine() )  {
+    logMsg('debug',"REC-LINE","\"$line\"") if $rec_dbg and $rec_dbg > 2;
+    if (attemptEnumeration())  {
+      logMsg('error',"REC-PARSE-ENUM-UNUSUAL",$line);
+      next;
+    }
+    if ( $line =~ m/^\s*\}(\)?)\s*(.*?)\s*$/ )  {
+      ($ebrk, $after) = ($1, $2);
+      # dump array to output stream.
+      logMsg('debug',"TRACE", "RECORD > ".
+             "$rd->{kind} $rd->{cname} $rd->{cid} $rd->{size} $rd->{at} $rd->{level} "
+             .srcKey())
+        if $tracing{'log'};
+      foreach my $ri (@{$rd->{items}})  {
+        logMsg('debug',"TRACE","RECORD - $ri->{name} $ri->{bsize} $ri->{bpos} "
+               .tatom2str($ri->{tatom}))
+          if $tracing{'log'};
+      }
+      addRecord($rd);
+      return $after;
+    }
+    if (attemptRecord ($rd->{cname}, $rd->{level} + 1))  {
+      logMsg('error',"REC-PARSE-SUBREC-UNUSUAL",$line);
+      next;
+    }
+    if ( $line =~ m/^\s*:([^ESU]):; :zb(\d+): :zp(\d+):$/ )  {
+      # like here: ":I:; :zb1: :zp63:"
+      # strange anonymous field
+      $line = ":$1: __aNoNyMoUs__FiElD__; :zb$2: :zp$3:";
+    }
+    # this is simple element.
+    $line =~ s/^\s+//;
+    $line =~ s/\s+$//;
+    unless ( $line =~ m/^\s*(.*?);\s+:zb(\d+): :zp(\d+):$/ )  {
+      # declaration of simple element must contain only name,
+      # type and element data, its bit length and bit offset.
+      logMsg('error',"RECORD-LINE-UNKNOWN","record \"$display\"");
+      logMsg('error',"RECORD-LINE-UNKNOWN","> \"$line\"");
+      next;
+    }
+    ($def, $bsize, $bpos) = ($1, $2, $3);
+    my $ta = newTatom();
+    my $sc = parseTatom($def,$ta);
+    if ( $sc =~ m/^\!/ ) {
+      logMsg('error',"RECORD-".substr($sc,1),"record \"$display\"");
+      logMsg('error',"RECORD-".substr($sc,1),"> \"$line\"");
+      next;
+    }
+    push @{$rd->{items}}, { name=>$sc, bsize=>$bsize, bpos=>$bpos, tatom=>$ta };
+  }
+}
+
+sub attemptRecord
+{
+  my ($at, $level) = @_;
+  $at = '-' unless $at;
+  $level = 1 unless $level;
+  my ($sbrk, $kind, $cname, $cid, $size, $before, $after, $result, $display, $anon);
+  my $work_flag = 0;
+  # taking into account that description can sometemis start and end by a bracket.
+  # ...usual descriptions of structures/unions.
+  # ...descriptions of anonymous structures/unions.
+  # ...descriptions of external structures/unions.
+  # ...descriptions of structures/unions nested in typedef.
+  # ...descriptions of strcutures/unions, nested in procedure parameters (begin).
+  # ...descriptions of strcutures/unions, nested in procedure parameters (end).
+  while ($line =~ m/^(.*?)\s*(\(?)\:([SU])\: (\%?\w+) \{(?: \:zs(\d+)\:)?(?: \:zi(\d+)\:)?$/ )  {
+    ($before, $sbrk, $kind, $cname, $size, $cid) = ($1, $2, $3, $4, $5, $6);
+    $anon = substr($cname,0,1) eq '%' ? 1 : 0;
+    unless (   (defined($size) && defined($cid) && !$anon)
+            || ($anon && defined($size) && !defined($cid))
+            || (!$anon && !defined($size) && $cid eq '0')
+            || (length($before) > 1 && $anon && defined($size) && !defined($cid)) )
+    {
+      logMsg('warn', "REC-PARSE-UNUSUAL", $line);
+    }
+    $size = 0 unless defined $size;
+    $cid = 0 unless defined $cid;
+    $display = "REC(kind=$kind cname=$cname cid=$cid size=$size at=$at level=$level)";
+    logMsg('debug',"REC-SUBST-START", $display) if $rec_dbg and !$work_flag;
+    $work_flag = 1;
+    logMsg('debug',"REC-SUBST-BEFORE", $line) if $rec_dbg;
+    my $rd = { kind=>$kind, cname=>$cname, cid=>$cid, size=>$size,
+               at=>$at, level=>$level, items=>[], src=>srcKey() };
+    $after = recordLevel($rd, $display, $sbrk);
+    if ($before eq '' and $after eq ';')  {
+      logMsg('debug',"REC-DONE", $display) if $rec_dbg;
+      return 1;
+    }
+    $line = "$before :$kind: $cname :zi$cid: $after";
+    logMsg('debug',"REC-SUBST-AFTER",$line) if $rec_dbg;
+  }
+  logMsg('debug',"REC-SUBST-END", $display) if $rec_dbg and $work_flag;
+  return 0;
+}
+
+# dump typedefs into separate file.
+# output: 0=all handled, 1=more processing is needed.
+sub attemptTypedef
+{
+  # catch everything starting from  "typedef" and ending by ";".
+  return 0 unless ( $line =~ m/^typedef\s+(.*)\s*;$/ );
+  # strip away the "typedef" keyword in the beginning and ";" in the end.
+  my $src = $1;
+
+  # special case, when a basic type is defined.
+  # should not be recorded in output. should not be skipped either.
+  # should not trigger error either. add to the file of warnings.
+  if( $src =~ m/^\w+ \:[^SEU]\:$/ )  {
+    logMsg('debug',"TYPEDEF-WARN",$line);
+    return 1;
+  } elsif( $src =~ m/^\:[^SEU]\: \:[^SEU]\:$/ )  {
+    logMsg('debug',"TYPEDEF-WARN",$line);
+    return 1;
+  } elsif( $src =~ m/^\:C\.\w\: \:C\.\w\:$/ ) {
+    # strange type names: "complex blah-blah", not sure what to do with them.
+    logMsg('debug',"TYPEDEF-WARN",$line);
+    return 1;
+  } elsif( $src =~ m/^complex \w+ \:C\.\w:$/ ) {
+    logMsg('debug',"TYPEDEF-WARN",$line);
+    return 1;
+  } elsif ( $src =~ m/^range \(\:i\:\)\:0x0{16}\:0x0{16} \:[qQ]\:$/ ) {
+    # yet another enigmatic construct. why derive 'long long' from 'int' ?
+    logMsg('debug',"TYPEDEF-WARN",$line);
+    return 1;
+  }
+
+  # parse the definition.
+  my $ta = newTatom();
+  my $sc = parseTatom($src, $ta);
+  if ( $sc =~ m/^\!/ )  {
+    logMsg('error',"TYPEDEF-".substr($sc,1),$line);
+  }  else  {
+    logMsg('debug',"TRACE","TYPEDEF > $sc ".tatom2str($ta)." ".srcKey())
+      if $tracing{'log'};
+    my $td = { name=>$sc, tatom=>$ta, src=>srcKey() };
+    addTypedef($td);
+  }
+  return 1;
+}
+
+# parse variable definitions.
+sub attemptGlobal
+{
+  my $gline = $line;
+  return 0 unless $gline =~ m/^\s*([\w\[\]\:\%\(\)\*\/\d\s]+)\s*\:zx([\da-fA-F]+)\:;$/;
+  my $adr = hex("0x$2");
+  my $ta = newTatom();
+  my $sc = parseTatom($1,$ta);
+  if ( $sc =~ m/^\!UNDIMED\s+(.*)$/ )  {
+    $sc = $1;
+    $ta->{dim0} = 1; # what the size should really be ?
+  }
+  if ( $sc =~ m/^\!/ ) {
+    logMsg('error',"VARS-".substr($sc,1),$line);
+  }  else  {
+    logMsg('debug',"TRACE","GLOBAL > $sc $adr ".tatom2str($ta)." ".srcKey())
+      if $tracing{'log'};
+    my $gd = { name=>$sc, adr=>$adr, tatom=>$ta, src=>srcKey() };
+    addGlobal($gd);
+  }
+  return 1;
+}
+
+# parse procedure definitions.
+sub attemptProcedure
+{
+  my ($result, $proto, $params, $pdef);
+
+  # catch definitions of procedures and functions.
+  return 0 unless $line =~ m/^\s?([\w\d:%][\w\d:%\[\]\*\s]*) \((.*)\)$/;
+
+  $pdef = $line;
+  $pdef =~ s{\/\*.*?(?=\*\/)\*\/}{}g;
+  $pdef =~ m/^\s?([\w\d:%][\w\d:%\[\]\*\s]*) \((.*)\)$/;
+  ($proto,$params) = ($1,$2);
+
+  if ( $params =~ m/^\*(\w+)\)\s+\(\s*\)\s+\((.*?\:)$/ )  {
+    # this procedure returns pointer to a procedure, correcting...
+    $params = $2;
+    $proto = "$proto (*$1) ()";
+    #logMsg('debug',"PROC-DEF","proto=\"$proto\" params=\"$params\"");
+  }
+
+  # find the procedure address in the next line.
+  nextLine();
+  my $adr = 0;
+  if ( $line =~ m/^.*?\{:zx([\da-f]+)\}.*$/ ) {
+    $adr = hex("0x$1");
+  } else {
+    $adr = 0;
+    $result = $line;
+  }
+
+  # parse the returned type.
+  my $ta = newTatom();
+  my $sc = parseTatom($proto,$ta);
+  if( $sc =~ m/^\!/ )  {
+    logMsg('error',"PROC-PROC-".substr($sc,1),"pdef=\"$pdef\"");
+    logMsg('error',"PROC-PROC-".substr($sc,1),"proto=\"$proto\" params=\"$params\"");
+    return 1;
+  }
+
+  my $proc_name = $sc;
+
+  logMsg('debug',"TRACE","PROC > $proc_name $adr ".tatom2str($ta)." ".srcKey())
+    if $tracing{'log'};
+  my $pd = { name=>$proc_name, adr=>$adr, tatom=>$ta, params=>[], src=>srcKey() };
+
+  # parse the parameters.
+  foreach my $param (split(/\s*,\s*/,$params))    {
+    $adr = 0;
+    if ( $param =~ m/^(.*?)\s+:zx(\w+):$/ )   {
+      $param = $1;
+      $adr = hex("0x$2");
+    }
+    my $ta = newTatom();
+    my $sc = parseTatom($param,$ta);
+
+    if ( $sc =~ m/^\!BYVALUE\s+(.*)$/ )  {
+      # reference by value is allowed for register parameters.
+      $sc = $1;
+    }
+    if( $sc =~ m/^\!/ )   {
+      logMsg('error',"PROC-PARAM-".substr($sc,1),"\"$param\"");
+      return 1;
+    }
+    logMsg('debug',"TRACE","PROC + $sc $adr ".tatom2str($ta))
+      if $tracing{'log'};
+    push @{$pd->{params}}, { name=>$sc, adr=>$adr, tatom=>$ta };
+  }
+  addProc($pd);
+  return 1 unless defined $result;
+  $line = $result;
+  return 0;
+}
+
+# parse output of objdump utility and fill variable/type database
+sub parseDebuggingInfo
+{
+  my $src = shift;
+  die "null file in parse()\n" unless $src;
+  initInput($src);
+  initSchema();
+  setupSourcePrefixes();
+  $rec_dbg = $options{DEBUG_RECORD_PARSING};
+  $enum_dbg = $options{DEBUG_ENUMERATION_PARSING};
+  open(SRC, $src) or die "cannot read input from \"$src\"\n";
+  my $stat_file = mergePath(dirOf($options{COMMON_CONFIG}), "tatom_stats");
+  $tatom_stat_flag = 0;
+  %tatom_stat = ();
+  if ($options{TATOM_STATISTICS}) {
+    $tatom_stat_flag = 1;
+    if (open(STAT, "$stat_file")) {
+      while(<STAT>) {
+        next unless /^(\w+)=(\d+)$/;
+        $tatom_stat{$1} = $2;
+      }
+    } else {
+      # all zeroes.
+    }
+    close STAT;
+  }
+  logMsg('info',"PARSE","start parsing ".pathDisplay($src));
+  my $save_opt = $options{LOG_INPUT_POS};
+  $options{LOG_INPUT_POS} = 1;
+  while(nextLine()) {
+    study $line;
+    next if attemptEnumeration();
+    next if attemptRecord();
+    next if attemptTypedef();
+    next if attemptGlobal();
+    next if attemptProcedure();
+    logMsg('error',"NOT-IDENTIFIED",$line);
+  }
+  $options{LOG_INPUT_POS} = $save_opt;
+  showProgress('finish');
+  close(SRC);
+  if ($tatom_stat_flag)  {
+    open(STAT, "> $stat_file") or die "cannot write statistics to $stat_file\n";
+    foreach my $key (sort { -($tatom_stat{$a} <=> $tatom_stat{$b}) } keys %tatom_stat) {
+      print STAT "$key=$tatom_stat{$key}\n";
+    }
+    close STAT;
+  }
+  $tatom_stat_flag = 0;
+  logMsg('info',"PARSE",
+         "parsing finished ".($msg_qty{error} > 0 ? "with warnings" : "OK"));
+}
+
+# ===============================
+#               SQL
+# ===============================
+
+my $unit_key;
+
+sub sqlTruncate
+{
+  my $name = shift;
+  print SQL "TRUNCATE TABLE $name;\n";
+}
+
+sub sqlDelete
+{
+  my $name = shift;
+  print SQL "DELETE FROM $name WHERE ukey=$unit_key;\n";
+}
+
+sub sqlConstraint
+{
+  my ($name,$cons,$flag) = @_;
+  my $action = $flag ? "ENABLE" : "DISABLE";
+  print SQL "ALTER TABLE $name $action CONSTRAINT $cons;\n";
+}
+
+sub sqlBanner
+{
+  my $str = shift;
+  print SQL "\n-- ******** $str ********\n\n";
+}
+
+sub sqlComment
+{
+  my $str = shift;
+  print SQL "-- === $str ===\n";
+}
+
+sub sqlTruncateTables
+{
+  sqlBanner "TRUNCATE TABLES";
+
+  sqlTruncate  ("dbg_data_adr");
+  sqlTruncate  ("dbg_typedef");
+  sqlTruncate  ("dbg_rec_item");
+  sqlTruncate  ("dbg_proc_param");
+  sqlTruncate  ("dbg_global");
+  sqlTruncate  ("dbg_enum_item");
+
+  sqlConstraint("dbg_rec_item", "dbg_rec_item_of_rec_fk", 0);
+  sqlTruncate  ("dbg_record");
+  sqlConstraint("dbg_rec_item", "dbg_rec_item_of_rec_fk", 1);
+
+  sqlConstraint("dbg_proc_param", "dbg_proc_param_of_proc_fk", 0);
+  sqlTruncate  ("dbg_proc");
+  sqlConstraint("dbg_proc_param", "dbg_proc_param_of_proc_fk", 1);
+
+  sqlConstraint("dbg_enum_item", "dbg_enum_item_of_enum_fk", 0);
+  sqlTruncate  ("dbg_enum");
+  sqlConstraint("dbg_enum_item", "dbg_enum_item_of_enum_fk", 1);
+
+  sqlConstraint("dbg_enum", "dbg_enum_src_fk", 0);
+  sqlConstraint("dbg_global", "dbg_global_src_fk", 0);
+  sqlConstraint("dbg_proc", "dbg_proc_src_fk", 0);
+  sqlConstraint("dbg_record", "dbg_record_src_fk", 0);
+  sqlConstraint("dbg_typedef", "dbg_typedef_src_fk", 0);
+  sqlTruncate  ("dbg_source");
+  sqlConstraint("dbg_enum", "dbg_enum_src_fk", 1);
+  sqlConstraint("dbg_global", "dbg_global_src_fk", 1);
+  sqlConstraint("dbg_proc", "dbg_proc_src_fk", 1);
+  sqlConstraint("dbg_record", "dbg_record_src_fk", 1);
+  sqlConstraint("dbg_typedef", "dbg_typedef_src_fk", 1);
+
+  sqlConstraint("dbg_global", "dbg_global_ta_fk", 0);
+  sqlConstraint("dbg_proc", "dbg_proc_ta_fk", 0);
+  sqlConstraint("dbg_proc_param", "dbg_proc_param_ta_fk", 0);
+  sqlConstraint("dbg_rec_item", "dbg_rec_item_ta_fk", 0);
+  sqlConstraint("dbg_typedef", "dbg_typedef_ta_fk", 0);
+  sqlTruncate  ("dbg_tatom");
+  sqlConstraint("dbg_global", "dbg_global_ta_fk", 1);
+  sqlConstraint("dbg_proc", "dbg_proc_ta_fk", 1);
+  sqlConstraint("dbg_proc_param", "dbg_proc_param_ta_fk", 1);
+  sqlConstraint("dbg_rec_item", "dbg_rec_item_ta_fk", 1);
+  sqlConstraint("dbg_typedef", "dbg_typedef_ta_fk", 1);
+
+  sqlConstraint("dbg_source", "dbg_src_owner_fk", 0);
+  sqlTruncate  ("dbg_owner");
+  sqlConstraint("dbg_source", "dbg_src_owner_fk", 1);
+
+  sqlTruncate  ("dbg_objmod_adr");
+
+  sqlConstraint("dbg_global", "dbg_global_objmod_fk", 0);
+  sqlConstraint("dbg_proc", "dbg_proc_objmod_fk", 0);
+  sqlConstraint("dbg_objmod_adr", "dbg_objmod_adr_objmod_fk", 0);
+  sqlTruncate  ("dbg_objmod");
+  sqlConstraint("dbg_global", "dbg_global_objmod_fk", 1);
+  sqlConstraint("dbg_proc", "dbg_proc_objmod_fk", 1);
+  sqlConstraint("dbg_objmod_adr", "dbg_objmod_adr_objmod_fk", 1);
+
+  sqlTruncate  ("dbg_unit");
+}
+
+sub sqlDeleteTables
+{
+  sqlBanner "DELETE TABLES";
+  sqlDelete("dbg_data_adr");
+  sqlDelete("dbg_typedef");
+  sqlDelete("dbg_rec_item");
+  sqlDelete("dbg_proc_param");
+  sqlDelete("dbg_global");
+  sqlDelete("dbg_enum_item");       
+  sqlDelete("dbg_record");
+  sqlDelete("dbg_proc");
+  sqlDelete("dbg_enum");
+  sqlDelete("dbg_source");
+  sqlDelete("dbg_tatom");
+  sqlDelete("dbg_owner");
+  sqlDelete("dbg_objmod_adr");
+  sqlDelete("dbg_objmod");
+}
+
+sub sqlInsert
+{
+  my $st = shift;
+  $st =~ m/\((.*?)\)/ or die "wrong SQL statement \"$st\"\n";;
+  my $fdesc = $1;
+  my @fields = split(/\s*,\s*/,$fdesc);
+  my $s =  "INSERT INTO $st \n";
+  $s .=    "            VALUES( ";
+  foreach my $i (0 .. $#fields)  {
+    my $val = shift;
+    print STDERR "undef "."$fields[$i]"."[$i] in \"$st\"\n"
+      unless defined($val);
+    $val =~ s{\'}{\'\'};
+    $val = "'$val'" unless $val =~ m/^\d+$/;
+    $s .= $val;
+    $s .= ", " if $i < $#fields;
+  }
+  $s .= " )";
+  print SQL "$s;\n";
+}
+
+sub sqlInsertTatom
+{
+  my $td = shift;
+  my $ps = "dbg_tatom (ukey,ikey,kind,ptr,type,alloc,cname,cid,dim1,dim2,dim3,dim4)";
+  sqlInsert($ps,$unit_key,$td->{key},$td->{kind},$td->{ptr},
+             $td->{type},$td->{alloc},$td->{cname},$td->{cid},
+             $td->{dim0},$td->{dim1},$td->{dim2},$td->{dim3});
+}
+
+sub sqlWriteData
+{
+  my ($ps,$ips);
+  sqlBanner "SOURCES";
+  $ps = "dbg_source (ukey, ikey, path, owner_ikey)";
+  foreach my $sd (@src_files)  {
+    sqlInsert($ps,$unit_key,$sd->{no},$sd->{path},0);
+  }
+  sqlBanner "ENUMS";
+  $ps = "dbg_enum (ukey, ikey, name, src_ikey, src_line)";
+  $ips = "dbg_enum_item (ukey, ikey, enum_ikey, name, value)";
+  foreach my $ed (@enums)  {
+    sqlComment "enum: $ed->{name}";
+    sqlInsert($ps,$unit_key,$ed->{key},$ed->{name},$ed->{src},0);
+    foreach my $eid (@{$ed->{items}})  {
+      sqlInsert($ips,$unit_key,$eid->{key},$eid->{enum_ikey},
+                     $eid->{name},$eid->{value});
+    }
+  }
+  sqlBanner "TYPEDEFS";
+  $ps = "dbg_typedef (ukey,ikey,ta_ikey,name,src_ikey,src_line)";
+  foreach my $td (@typedefs)  {
+    sqlComment "typedef: $td->{name}";
+    sqlInsertTatom($td->{tatom});
+    sqlInsert($ps,$unit_key,$td->{key},$td->{ta_ikey},$td->{name},$td->{src},0);
+  }
+  sqlBanner "RECORDS";
+  $ps = "dbg_record (ukey,ikey,kind,name,id,size_,at_,level_,src_ikey,src_line)";
+  $ips = "dbg_rec_item (ukey,ikey,rec_ikey,ta_ikey,name,bit_off,bit_len)";
+  foreach my $rd (@records)  {
+    sqlComment "record: $rd->{name}";
+    sqlInsert($ps,$unit_key,$rd->{key},$rd->{kind},$rd->{cname},$rd->{cid},
+               $rd->{size},$rd->{at},$rd->{level},$rd->{src},0);
+    foreach my $rid (@{$rd->{items}})  {
+      sqlInsertTatom($rid->{tatom});
+      sqlInsert($ips,$unit_key,$rid->{key},$rid->{rec_ikey},$rid->{ta_ikey},
+                 $rid->{name},$rid->{bpos},$rid->{bsize});
+    }
+  }
+  sqlBanner "GLOBALS";
+  $ps = "dbg_global (ukey,ikey,ta_ikey,name,src_ikey,src_line,adr,obj_seg,obj_ikey)";
+  foreach my $gd (@globals)   {
+    sqlComment "global: $gd->{name}";
+    sqlInsertTatom($gd->{tatom});
+    sqlInsert($ps,$unit_key,$gd->{key},$gd->{ta_ikey},
+               $gd->{name},$gd->{src},0,$gd->{adr},'','');
+  }
+  sqlBanner "PROCEDURES";
+  $ps = "dbg_proc (ukey,ikey,ta_ikey,name,src_ikey,src_line,adr,obj_seg,obj_ikey)";
+  $ips = "dbg_proc_param (ukey, ikey, proc_ikey, ta_ikey, name, adr)";
+  foreach my $pd (@procs)  {
+    sqlComment "procedure: $pd->{name}";
+    sqlInsertTatom($pd->{tatom});
+    sqlInsert($ps,$unit_key,$pd->{key},$pd->{ta_ikey},$pd->{name},
+               $pd->{src},0,$pd->{adr},'','');
+     foreach my $ppd (@{$pd->{params}})  {
+       sqlInsertTatom($ppd->{tatom});
+       sqlInsert($ips,$unit_key,$ppd->{key},$ppd->{proc_ikey},$ppd->{ta_ikey},
+                  $ppd->{name},$ppd->{adr});
+     }
+  }
+}
+
+sub sqlWriteQuarks
+{
+  my ($ps, $ips);
+  sqlBanner "QUARKS";
+  $ps = "dbg_data_adr (ukey,name,ikey,ptr,type,adr,off,len,bit_off,bit_len"
+        .",coef1,coef2,coef3,coef4,dim1,dim2,dim3,dim4,obj_seg,objadr_ikey,glob_ikey)";
+  foreach my $cd (@quarks)  {
+    sqlInsert($ps,$unit_key,$cd->{path},$cd->{ikey},$cd->{ptr},$cd->{type},
+              $cd->{adr},$cd->{off},$cd->{len},$cd->{bit_off},$cd->{bit_len},
+              $cd->{coef0},$cd->{coef1},$cd->{coef2},$cd->{coef3},
+              $cd->{dims0},$cd->{dims1},$cd->{dims2},$cd->{dims3},
+              $cd->{obj_seg},$cd->{obj_ikey},$cd->{glob_ikey});
+  }
+}
+
+# create a file suitable for sqlplus to setup Oracle database
+sub dumpSql
+{
+  my ($file, $what, $a_unit_key) = @_;
+  $unit_key = $a_unit_key ? $a_unit_key : 0;
+  $what = "delete,data,quarks" unless $what;
+  $file = "ora.sql" unless $file;
+  open(SQL, "> $file") or die "cannot write to $file\n";
+  print STDERR "dumping SQL... " if $options{SHOW_PROGRESS};
+  sqlBanner "INITIALIZE";
+  print SQL "ALTER SESSION SET NLS_LANGUAGE=AMERICAN;\n";
+  sqlTruncateTables if $what =~ /truncate/;
+  sqlDeleteTables if $what =~ /delete/;
+  sqlWriteData if $what =~ /data/;
+  sqlWriteQuarks if $what =~ /quarks/;
+  sqlBanner "FINISH";
+  print SQL "COMMIT;\n";
+  print SQL "EXIT;\n";
+  close SQL;
+  print STDERR "done.\n" if $options{SHOW_PROGRESS};
+}
+
+# ===============================
+#           ITEM MAKER
+# ===============================
+
+my $quark_opts;
+my $reverse_bits;
+
+# create initial quark representation from global variable
+sub glob2quark
+{
+  my $glob = shift;
+  my $quark = newQuark();
+  $quark->{obj_seg}   = $glob->{obj_seg};
+  $quark->{obj_ikey}  = $glob->{obj_ikey};
+  $quark->{glob_ikey} = $glob->{key};
+  $quark->{path}      = $glob->{name};
+  $quark->{adr}       = $glob->{adr};
+  $quark->{rec_name}  = "-";
+  $quark->{rec_lev}   = 0;
+  $quark->{rec_bits}  = 0;
+  $quark->{glob_name} = $glob->{name};
+  $quark->{glob_adr}  = $glob->{adr};
+  return $quark;
+}
+
+# create quarks using type/global database    
+sub assembleQuarks
+{
+  $quark_opts = shift;
+  $quark_opts = "strings,oldstyle" unless $quark_opts;
+  print STDERR "assembling quarks... " if $options{SHOW_PROGRESS};
+  my @sorted_globals = sort { $a->{'name'} cmp $b->{'name'} } @globals;
+  foreach my $glob (@sorted_globals)  {
+    my $quark = glob2quark($glob);
+    my $ta = $glob->{tatom};
+    mergeTatom($quark, $ta);
+  }
+  if ( $quark_opts =~ /\boldstyle\b/ )  {
+    # for old-style "looker" (to be removed).
+    foreach my $glob (@sorted_globals)  {
+      my $quark = glob2quark($glob);
+      if (mergePrimitive($quark,$glob->{tatom}) eq 'simple')  {
+        $quark->{path} .= "*";
+        outputQuark($quark,'noadd');
+      } else {
+        $quark = glob2quark($glob);
+        $quark->{ptr} = 'D';
+        $quark->{type} = 'v';
+        $quark->{path} .= "*";
+        outputQuark($quark,'noadd');
+      }
+    }
+  }
+  print STDERR "done.\n" if $options{SHOW_PROGRESS};
+}
+
+my %primitive_type_len = (
+  'b' => 1,  # char, signed char
+  'B' => 1,  # unsigned char
+  'h' => 2,  # short
+  'H' => 2,  # unsigned short
+  'i' => 4,  # int
+  'I' => 4,  # unsigned int
+  'l' => 4,  # long
+  'L' => 4,  # unsigned long
+  'q' => 8,  # long long
+  'Q' => 8,  # unsigned long long
+  'f' => 4,  # float
+  'd' => 8,  # double
+  'D' => 16, # long double
+  'p' => 4,  # (*func)()
+  'v' => 0,  # void
+  's' => 0   # string, char*, signed char*, unsigned char*
+);
+
+# byte length of basic (primitive) data types    
+sub getPrimitiveLen
+{
+  my $prim_type = shift;
+  my $len = $primitive_type_len{$prim_type};
+  $len = 0 unless $len;
+  return $len;
+}
+
+# add a quark into database
+sub outputQuark
+{
+  my $quark = shift;
+  my $flags = shift;
+  my ($num, $off, $len, $blen, $boff, $i);
+  # fix up offsets and length
+  $off = $quark->{off};
+  if ($quark->{len} <= 0)  {
+    if ($quark->{type} eq 'v'
+        && ($quark->{ptr} eq 'I' or $quark->{ptr})) {
+      # (void *) -> (u_char *)
+      $quark->{type} = 'B';
+    }
+    $quark->{len} = getPrimitiveLen($quark->{type});
+  }
+  $len  = $quark->{len};
+  $blen = $quark->{bit_len};
+  if ($blen != $len * 8)  {
+    if ($blen < $len * 8)  {
+      # it is a bit field
+      $blen = $len * 8;
+    } else {
+      # must be a pointer
+      unless ($blen % 8 == 0 and 
+              ($quark->{ptr} eq 'I' or $quark->{ptr} eq 'P')
+               && $blen == 32 # perhaps 
+              )  {
+        unless ($quark->{path} =~ m/\!$/)  {  # not an error already
+          logMsg ('error', "QUARK-BIT-LENGTH", quark2str($quark));
+          # return;
+        }
+      }
+      $len = $blen / 8;
+    }
+  }
+  $boff = $quark->{bit_off};
+  if ($reverse_bits and
+      $quark->{bit_len} > 0 and $quark->{bit_len} < $blen)
+  {
+    my $r_boff = $blen - $quark->{bit_len} - $boff % $blen;
+    my $r_off = $off + int($boff / $blen) * $len;
+    if ($r_boff < 0) {
+      if ($quark->{path} !~ /\!$/) {
+        #logMsg ('error', "QUARKS", "negative bit offset ($r_boff): ".quark2msg($quark));
+        $quark->{path} .= ":negabit!";
+      }
+      #return;
+    } else {
+      $boff = $r_boff;
+      $off = $r_off;
+    }
+  }
+  if ($len > 0) {
+    if ($boff >= $blen)  {
+      $off += int($boff / $blen) * $len;
+      $boff %= $blen;
+    }
+    if ($quark->{bit_len} > $blen)  {
+      logMsg ('error', "QUARKS", "too big bit length: ".quark2str($quark));
+      #return;
+    } elsif ($quark->{bit_len} == $blen)  {
+      if ($boff > 0)  {
+        logMsg ('error', "QUARKS", "bit offset not even: ".quark2str($quark));
+        #return;
+      }
+      $quark->{bit_len} = 0;
+    }
+  }
+  $quark->{off} = $off;
+  if ($boff > 255) {
+    if ($quark->{path} !~ /\!$/) {
+      #logMsg('error', "QUARKS", "huge bit offset ($boff): ".quark2msg($quark));
+      $quark->{path} .= ":hugebit!";
+    }
+    $boff = 0;
+    #return;
+  }
+  $quark->{bit_off} = $boff;
+  # fix up pointer kind
+  $quark->{ptr} = 'I' if ($quark->{rec_lev} == 0 && $quark->{ptr} eq 'R'
+                          && $quark->{n_dims} == 0);
+  # feel sublimated arrays
+  if (exists($options{MAX_SUBL_ARR_IND})
+      and $options{MAX_SUBL_ARR_IND} > 0
+      and ($quark->{ptr} eq 'R' or $quark->{ptr} eq 'P')
+      and ($quark->{n_dims} > 0 and $quark->{n_dims} < 4)
+      and !$quark->{sublimated})
+  {
+    my $iquark = copyQuark($quark);
+    for (my $i = $iquark->{n_dims} - 1; $i >= 0; $i--)  {
+      my $i1 = $i + 1;
+      $iquark->{"dims$i1"} = $iquark->{"dims$i"};
+      $iquark->{"coef$i1"} = $iquark->{"coef$i"};
+    }
+    $iquark->{n_dims}++;
+    $iquark->{dims0} = $options{MAX_SUBL_ARR_IND};
+    $iquark->{coef0} = $iquark->{dims1} * $iquark->{coef1};
+    my $plus_mark = !$options{SUBL_ARR_PLUS_MARK} ? "" : "+";
+    $iquark->{path} =~ s/^([^\.\?]+)/$1$plus_mark\?/;
+    $iquark->{sublimated} = 1;
+    outputQuark($iquark);
+    $quark->{ikey} = $iquark->{ikey};
+    $quark->{sublimated} = 1;
+  }
+  # another kind of sublimated arrays
+  if (exists($options{MAX_SUBL_ARR_IND})
+      and $options{MAX_SUBL_ARR_IND} > 0
+      and ($quark->{ptr} eq 'I' or $quark->{ptr} eq 'R')
+      and ($quark->{n_dims} == 0)
+      and !$quark->{sublimated})
+  {
+    my $iquark = copyQuark($quark);
+    $iquark->{ptr} = 'R';
+    $iquark->{n_dims} = 1;
+    $iquark->{dims0} = $options{MAX_SUBL_ARR_IND};
+    $iquark->{coef0} = $iquark->{len};
+    my $plus_mark = !$options{SUBL_ARR_PLUS_MARK} ? "" : "+";
+    $iquark->{path} =~ s/^([^\.\?]+)/$1$plus_mark\?/;
+    $iquark->{sublimated} = 1;
+    outputQuark($iquark);
+    $quark->{ikey} = $iquark->{ikey};
+    $quark->{sublimated} = 1;
+  }
+  # feel strings
+  if ($quark_opts =~ /\bstrings\b/
+      and  $quark->{bit_off}==0
+      and ($quark->{type} eq 'b' or $quark->{type} eq 'B')
+      and ($quark->{dim_last} == 1 or $quark->{ptr} eq 'I' or $quark->{ptr} eq 'P')
+      and (!defined($flags) or $flags !~ /noadd/)
+      )
+  {
+    my $iquark = copyQuark($quark);
+    $iquark->{type} = 's';
+    if ($iquark->{dim_last} == 1) {
+      $iquark->{path} =~ s{.$}{\+};
+      $iquark->{len} = $iquark->{"dims".($iquark->{n_dims}-1)};
+      $iquark->{n_dims}--;
+      $iquark->{n_coef}--;
+    } else {
+      $iquark->{path} .= "+";
+      $iquark->{len} = $options{SUBL_STRING_DEF_LEN};
+    }
+    outputQuark($iquark);
+    $quark->{ikey} = $iquark->{ikey};
+  }
+  # fill rest of dimensions with zeroes.
+  for ($i = $quark->{n_dims}; $i < 4; $i++)  {
+    $quark->{"dims$i"} = $quark->{"coef$i"} = 0;
+  }
+  $quark->{n_dims} = $quark->{n_coef} = $i;
+  addQuark($quark);
+  $quark->{ikey}++;
+}
+
+# combine quark with tatom array information.
+sub mergeDims
+{
+  my $quark = shift;
+  my $ta = shift;
+  my $nd = $quark->{n_dims};
+  my $nc = $quark->{n_coef};
+  while(1) {
+    if ($ta->{dim0} > 0)  {
+      $quark->{dim_last} = 1;
+      last if $nd >= 4 or $nc >= 4;
+      $quark->{"dims$nd"} = $ta->{dim0};
+      $quark->{"coef$nc"} = 0;
+      $nd++;  $nc++;
+      $quark->{path} .= "?";
+      if ($ta->{dim1} > 0)  {
+        last if $nd >= 4 or $nc >= 4;
+        $quark->{"dims$nd"} = $ta->{dim1};
+        $quark->{"coef$nc"} = 0;
+        $nd++;  $nc++;
+        $quark->{path} .= "?";
+        if ($ta->{dim2} > 0)  {
+          last if $nd >= 4 or $nc >= 4;
+          $quark->{"dims$nd"} = $ta->{'dim2'};
+          $quark->{"coef$nc"} = 0;
+          $nd++;  $nc++;
+          $quark->{path} .= "?";
+          if ($ta->{dim3} > 0)  {
+            last if $nd >= 4 or $nc >= 4;
+            $quark->{"dims$nd"} = $ta->{dim3};
+            $quark->{"coef$nc"} = 0;
+            $nd++;  $nc++;
+            $quark->{path} .= "?";
+          }
+        }
+      }
+      $quark->{n_dims} = $nd;
+      $quark->{n_coef} = $nc;
+    } else {
+      $quark->{dim_last} = 0;
+    }
+    return 1;
+  }
+  $quark->{n_dims} = $nd;
+  $quark->{n_coef} = $nc;
+  $quark->{path} .= ":maxdim!";
+  outputQuark $quark;
+  return 0;
+}
+    
+# -- typedef ptr additivity:
+# -- * global_ptr+tatom_ptr -> result_ptr
+# -- * any_ptr: array?, kind
+# -- * array = Single      // int  x
+# -- *       | Array       // int  x[2]
+# -- * kind  = Direct      // int x[2]
+# -- *       | Indirect    // int* x[2]
+# -- *       | Reference   // int (*x)[2]
+# -- *       | Pointer     // int*(*)
+# -- * globalArray_tatomArray_globalKind_tatomKind[=|-]resultKind
+# -- '=' ==> allowed within records
+# -- '-' ==> prohibited within records
+# -- SSDD=D,SSDI=I,SSDR=R,SSDP=P,
+# -- SSID=I,SSII=P,SSIR=P,SSIP=N,
+# -- SSRD=R,SSRI=P,SSRR=P,SSPP=N,
+# -- SSPD=P,SSPI=N,SSPR=N,SSPP=N,
+# -- SADD=D,SADI=I,SADR=R,SADP=P,
+# -- SAID=R,SAII=P,SAIR=N,SAIP=N,
+# -- SARD=R,SARI=P,SARR=N,SAPP=N,
+# -- SAPD=N,SAPI=N,SAPR=N,SAPP=N,
+# -- ASDD=D,ASDI=I,ASDR=I,ASDP=N,
+# -- ASID=I,ASII=N,ASIR=N,ASIP=N,
+# -- ASRD=R,ASRI=P,ASRR=P,ASPP=N,
+# -- ASPD=P,ASPI=N,ASPR=N,ASPP=N,
+# -- AADD=D,AADI=I,AADR=N,AADP=N,
+# -- AAID=N,AAII=N,AAIR=N,AAIP=N,
+# -- AARD=R,AARI=P,AARR=N,AAPP=N,
+# -- AAPD=N,AAPI=N,AAPR=N,AAPP=N,
+
+my %abbrev_rule = (
+  DDSS => '=D', DISS => '=I', DRSS => '=R', DPSS => '-P',
+  IDSS => '=I', IISS => '-P', IRSS => '-P', RDSS => '=R',
+  RISS => '=P', RRSS => '=P', PDSS => '=P',
+  DDSA => '=D', DISA => '=I', DRSA => '-R', DPSA => '-P',
+  IDSA => '=R', IISA => '-P', RDSA => '=R', RISA => '=P',
+  DDAS => '=D', DIAS => '=I', DRAS => '=I',
+  IDAS => '=I', RDAS => '=R',
+  RIAS => '=P', RRAS => '=P', PDAS => '=P',
+  DDAA => '=D', DIAA => '=I', RDAA => '=R', RIAA => '=P'
+);
+
+# combine quark with tatom pointer information
+sub mergePtr
+{
+  my $quark = shift;
+  my $ta = shift;
+  if ($quark->{ptr} eq '-')  {
+    $quark->{ptr} = $ta->{ptr};
+    return 1;
+  }
+  my $str = $quark->{ptr} . $ta->{ptr}
+          . ($quark->{n_dims} > 0 ? 'A' : 'S')
+          . ($ta->{dim0} > 0 ? 'A' : 'S');
+  my $abb = $abbrev_rule{$str};
+  if (defined($abb)) {
+    unless ($quark->{rec_lev} > 0 and $quark->{bit_off} > 0
+            and substr($abb,0,1) ne '=')  {
+      $quark->{ptr} = substr($abb,1,1);
+      return 1;
+    }
+  }
+  $quark->{path} .= ":incompat!";
+  outputQuark($quark);
+  return 0;
+}
+
+# merge a simple primitive type into quark
+sub mergePrimitive
+{
+  my $quark = shift;
+  my $ta_p = shift;
+  my $ta = $$ta_p;
+  my $pflag = 0;
+  while($ta->{kind} eq 'T')  {
+    $pflag = 1 if $ta->{ptr} ne 'D';
+    return 'error' unless mergePtr($quark,$ta);
+    return 'error' unless mergeDims($quark,$ta);
+    my $str = $ta->{type};
+    if (exists $bad_typedefs{$str})  {
+      my $iquark = copyQuark($quark);
+      $iquark->{path} .= ":$str:duptype!";
+      outputQuark($iquark);
+      $quark->{ikey} = $iquark->{ikey};
+    }
+    my $tmp_td = $typedefs_byname{$str};
+    unless (defined($tmp_td) and defined($tmp_td->{tatom}))  {
+      if (defined($tmp_td))  {
+        logMsg('info','merge-prim',
+               "bad typedef \"$str\": ".typedef2str($tmp_td));
+      } else {
+        logMsg('info','merge-prim',"cannot find typedef \"$str\"");
+      }
+      return 'error';
+    }
+    $ta = $tmp_td->{tatom};
+  }
+  unless ($ta->{kind} eq 'B' or $ta->{kind} eq 'E')  {
+    $$ta_p = $ta;
+    return $pflag==1 ? 'pointer' : 'direct';
+  }
+  return 'error' unless mergePtr($quark,$ta);
+  return 'error' unless mergeDims($quark,$ta);
+  my $num = 0;
+  if ($ta->{kind} eq 'E')  {
+    $quark->{type} = 'E';
+    $num = 4;
+  } else {
+    $quark->{type} = $ta->{type};
+    $num = getPrimitiveLen($quark->{type});
+  }
+  $quark->{len} = $num if $quark->{len} == 0;
+  for (my $i = $quark->{n_dims}-1; $i >= 0; $i--)  {
+    last if $quark->{"coef$i"} > 0;
+    $quark->{"coef$i"} = $num;
+    $num *= $quark->{"dims$i"};
+  }
+  $$ta_p = $ta;
+  return 'simple';
+}
+
+# generate (possibly many) children from our quark
+# using type information in given tatom  
+sub mergeTatom
+{
+  my $quark = shift;
+  my $ta = shift;
+  my $retval = mergePrimitive($quark,\$ta);
+  my $pflag;
+  if ($retval eq 'simple')  {
+    outputQuark $quark;
+    return 1;
+  } elsif ($retval eq 'pointer') {
+    $pflag = 1;
+  } elsif ($retval eq 'direct') {
+    $pflag = 0;
+  } elsif ($retval eq 'error') {
+    return 0;
+  } else {
+    die "unknown retval $retval\n";
+  }
+  return 0 unless $ta->{kind} eq 'S' or $ta->{kind} eq 'U';
+  if ($quark->{rec_lev} > 0 and ($pflag == 1 or $ta->{ptr} ne 'D'))  {
+    $quark->{path} .= ":prohibit!";
+    outputQuark($quark);
+    return 0;
+  }
+  return 0 if mergePtr($quark,$ta) == 0;
+  return 0 if mergeDims($quark,$ta) == 0;
+  $quark->{ptr} = 'R'
+    if $quark->{rec_lev} == 0 and $quark->{ptr} eq 'I';
+  my $r_found = 0;
+  my $r_rec;
+  my $warned = 0;
+  my $warn_dup_recs = $options{WARN_DUP_RECS};
+  foreach my $r (@records) {
+    if ( $r->{cname} eq $ta->{cname} and $r->{cid} == $ta->{cid}
+         and $r->{kind} eq $ta->{kind}
+         and ($r->{at} eq "-" or $r->{at} eq $quark->{rec_name}) ) {
+      if ($r_found == 1 and $warn_dup_recs and ! $warned) {
+        $warned = 1;
+        my $warn_quark = $quark;
+        $warn_quark->{path} .= ":$ta->{cname}:manyrec!";
+        outputQuark $warn_quark;
+        $quark->{ikey} = $warn_quark->{ikey};
+        return 0 if $warn_dup_recs == 2;
+      }
+      $r_found = 1;
+      $r_rec = $r;
+    }
+  }
+  if ($r_found != 1) {
+    $quark->{path} .= ":$ta->{cname}:norec!";
+    outputQuark $quark;
+    return 0;
+  }
+  $quark->{rec_name} = $r_rec->{cname};
+  $quark->{rec_bits} = $r_rec->{size} * 8;
+  my $r_size = $r_rec->{size};
+  for (my $i = $quark->{n_dims} - 1; $i >= 0; $i--) {
+    last if $quark->{"coef$i"} > 0;
+    $quark->{"coef$i"} = $r_size;
+    $r_size *= $quark->{"dims$i"};
+  }
+  foreach my $ri (@{$r_rec->{items}}) {
+    my $iquark = copyQuark($quark);
+    $iquark->{rec_lev} = $quark->{rec_lev} + 1;
+    if ($iquark->{rec_lev} > 5) {
+      $iquark->{path} .= ":maxlevel!";
+      outputQuark $iquark;
+      $quark->{ikey} = $iquark->{ikey};
+      return 0;
+    }
+    $iquark->{path} .= ".$ri->{name}";
+    $r_size = $ri->{bsize};
+    if ($ta->{kind} eq 'S') {
+      $iquark->{bit_off} = $quark->{bit_off} + $ri->{bpos};
+    }
+    my $ita = $ri->{tatom};
+    if ($ita->{kind} eq 'B' and $ita->{dim0}==0 and $iquark->{bit_len}==0) {
+      $iquark->{bit_len} = $ri->{bsize};
+    }
+    my $tmp_flag = mergeTatom($iquark,$ita);
+    $quark->{ikey} = $iquark->{ikey};
+  }
+  return 1;
+}
+
+# ===============================
+#        ADDRESS RESOLVER
+# ===============================
+
+# read quark database from ini file
+sub resolveInit
+{
+  my $file = shift;
+  printUsage() unless $file;
+  initQuarks();
+  readQuarks($file);
+}
+
+# convert pforms-formatted data path into address/offset
+sub resolveAddress
+{
+  my ($path, $quark) = @_;
+  my @inds = ();
+  my $i;
+  # parse the path and crack out indexes
+  return "WRONG_METACHAR"
+    if $path =~ m/\?/ or $path =~ m/\!/ or $path =~ m/\+/;
+  while ($path =~ m/\[(\d+)\]/) {
+    push @inds, $1;
+    $path =~ s/\[\d+\]/\?/;
+  }
+  return "TOO_MANY_INDEXES" if ($#inds+1 > 4);
+  push(@inds, 0) while ($#inds+1 < 4);
+  # search quark by canonical name
+  my $cd = $quarks_byname{$path};
+  return "NOT_FOUND" unless $cd;
+  foreach my $key (keys %{$quark})  { delete ${$quark}{$key}; }
+  foreach my $key (keys %{$cd})     { $quark->{$key} = $cd->{$key}; }
+  # crunch offset from indexes
+  for ($i=0; $i<4; $i++)  {
+    my $ind = $inds[$i];
+    my $dim = $quark->{"dims$i"};
+    return "OUT_OF_RANGE_$i"
+      if ($dim==0 and $ind != 0) or ($dim!=0 and $ind>=$dim) or $ind<0;
+    $quark->{off} += $ind * $quark->{"coef$i"};
+    $quark->{"inds$i"} = $ind;
+  }
+  # experimental: find static OOID, if possible
+  my $mul = 0;
+  for ($i=1; $i<4; $i++)  {
+    $mul += $inds[$i-1];
+    my $dim = $quark->{"dims$i"};
+    $mul *= $dim if $dim > 0;
+  }
+  $mul += $inds[$i-1];
+  my $key = $quark->{ikey};
+  my $ooid = 0;
+  if ( $mul >= 0 and $mul < $MAX_MUL and
+       $key >= 0 and $key < $MAX_KEY     )
+  {
+    $ooid = $mul * 1 + $key * $MAX_KEY;
+  }
+  $quark->{ooid} = sprintf("0x%08x", $ooid);
+  return "OK";
+}
+
+# interactive program to test quark database
+sub resolveTest
+{
+  my $file = shift;
+  # read quark data from file
+  print STDERR "initializing...";
+  resolveInit($file);
+  print STDERR "done (".($#quarks+1)." quarks).\n";
+  # experimental: evaluate current OOID limitations
+  my $cnt = 0;
+  my $list = "";
+  my $overflow = 0;
+  my $max_mul = 0;
+  my $max_key = 0;
+  foreach my $c (@quarks)  {
+    my $mul = 1;
+    for (my $i=0; $i<4; $i++)  {
+      my $dim = $c->{"dims$i"};
+      last if $dim == 0;
+      $mul *= $dim;
+    }
+    my $key = $c->{ikey};
+    $max_mul = $mul if $max_mul < $mul;
+    $max_key = $key if $max_key < $key;
+    unless ( $mul >= 0 and $mul < $MAX_MUL and
+             $key >= 0 and $key < $MAX_KEY     )
+    {
+      $cnt++;
+      if (length($list) > 160)  {
+        $list .= "...and more..." unless $overflow;
+        $overflow = 1;
+      } else {
+        $list .= $c->{path} . ",";
+      }
+    }
+  }
+  my $bn = 1;
+  my $mul = 1;
+  my $mul_limit = $MAX_MUL * $MAX_KEY;
+  while ($mul < $mul_limit)  { $bn++; $mul *= 2; }
+  print "largest array = $max_mul, largest key = $max_key, take up $bn bits\n";
+  if ($cnt > 0)  {
+    print "found $cnt quarks without static OOIDs:\n$list.\n";
+  } else {
+    print "all have OOIDs.\n";
+  }
+  # real work cycle
+  print STDERR "enter 'q' to exit.\n";
+  while(1) {
+    # get input from user
+    print STDERR "enter>";
+    my $path  = <STDIN>;
+    $path =~ s{^\s+}{};
+    $path =~ s{\s+$}{};
+    last if !defined($path) or $path =~ m/^\s*q\s*$/;
+    # resolve address (experimental: and OOID also)
+    my $quark = newQuark();
+    my $result = resolveAddress($path, $quark);
+    # print result
+    if ($result ne 'OK')  {
+      print STDERR "cannot resolve \"$path\": $result\n";
+      next;
+    }
+    print STDERR "resolved \"$path\": static ooid=$quark->{ooid}\n";
+    print STDERR "  ".quark2str($quark)."\n";
+  }
+  print "good bye.\n";
+}
+
+# create a quark file suitable for hub or for our resolverTest.
+sub writeQuarks
+{
+  my $quark_file = shift;
+  open(QUARKS, "> $quark_file") or die "cannot write dump to $quark_file\n";
+  print QUARKS "; updated ".timeNow()."\n";
+  print QUARKS ";ikey,path,ptr,type,adr,off,len,boff,blen,".
+               "c0,c1,c2,c3,d0,d1,d2,d3,gname,gadr,seg,objkey\n";
+  foreach my $cd (@quarks)  {
+    $cd->{obj_seg} = '?' unless defined $cd->{obj_seg};
+    $cd->{obj_ikey} = 0 unless defined $cd->{obj_ikey};
+    print QUARKS join('|', $cd->{ikey},$cd->{path},$cd->{ptr},$cd->{type},
+                      $cd->{adr},$cd->{off},$cd->{len},
+                      $cd->{bit_off},$cd->{bit_len},
+                      $cd->{coef0},$cd->{coef1},$cd->{coef2},$cd->{coef3},
+                      $cd->{dims0},$cd->{dims1},$cd->{dims2},$cd->{dims3},
+                      $cd->{glob_name},$cd->{glob_adr},
+                      $cd->{obj_seg},$cd->{obj_ikey}
+                     )."\n";
+  }
+  close(QUARKS);
+}
+
+# read quark file in PSV format
+sub readQuarks
+{
+  my $file = shift;
+  open(QUARKS, "< $file") or die "cannot read quarks from $file\n";
+  while (<QUARKS>)  {
+    chop; chomp;
+    next if m/^\;/ or m/^\s*$/;
+    #print "$file \"$_\"\n";
+    my %cd = ();
+    $cd{rec_bits} = 0;
+    ($cd{ikey},$cd{path},$cd{ptr},$cd{type},
+     $cd{adr},$cd{off},$cd{len},$cd{bit_off},$cd{bit_len},
+     $cd{coef0},$cd{coef1},$cd{coef2},$cd{coef3},
+     $cd{dims0},$cd{dims1},$cd{dims2},$cd{dims3},
+     $cd{glob_name},$cd{glob_adr},
+     $cd{obj_seg},$cd{obj_ikey}
+    ) = split '\|';
+    addQuark \%cd;
+    #print "$#quarks: ".quark2str(\%cd)."\n";
+  }
+  close (QUARKS);
+}
+
+# ===============================
+#         COMMAND LINE
+# ===============================
+
+my (%domains, %binutils);
+
+sub dumpOptions
+{
+  my $prefix = shift;
+  $prefix = "debug" unless $prefix;
+  foreach my $key (sort keys %options)  {
+    my $val = $options{$key};
+    $val = '"'.$val.'"' if defined($val) and $val =~ /\D/;
+    $val = "null" unless defined($val);
+    print "$prefix: $key=$val\n";
+  }
+}
+
+sub printUsage
+{
+  my $msg = shift;
+  if ($msg and $msg eq "short")  {
+    print STDOUT "no valid action specified. use -h to get help\n";
+    exit(1);
+  }
+  print STDOUT "$msg\n" if $msg;
+  my $prog_name = fileOf($0);
+  print STDOUT <<EOT;
+$0 - extracts debugging information from object files.
+
+Usage: $0 [OPTIONS]...
+
+  -m / --make            action: parse new debugging information for current domain
+                         (this is the default action)
+  -d / --domain domain   non-default domain name for make (default: from config file)
+  -f / --force           make even unchanged modules (default: no)
+  -a / --addresses       only update addresses (default: also parse debug info)
+  -H / --human-readable  create human readable representation of internal files
+                         (default: no)
+  -t / --leave-temp      leave temporary files (default: delete)
+  --sql                  create Oracle(tm) sqlplus scripts
+  --no-auto-pack         dont try to suppress duplicating type definitions
+                         (default: suppress)
+  --no-warn-duplicates   do not log warnings about duplicate entities
+  --tatom-statistics     evaluate statistics of different tatom cases and keep it
+                         in file "directory_of_common_config/tatom_stats"
+  --test-addressing      assign virtual addresses if a symbol not found
+  -w / --show-progress   show progress indicator when parsing (default: no)
+  --progress-step N      update progress indicator every N parsed lines
+                         (default: 1000)
+  -T / --trace file      dump internal structures into the trace during parsing
+                         if the file is 'log' then dump trace into log
+                         (default: no trace)
+  -l / --log-file file   log into given file (default: from config)
+  --reset-log            reset log file at startup (default: append)
+  -E / --enable-control  enable invoking ocontrol (default: from config file)
+  -p / --parse file      action: test parsing of objdump output from given file
+  -r / --resolve psv     action: test address resolution using given psv file
+  --options file         read options from file
+  -c / --config file     alternate path to common config file 
+                         (default: ocommon.ini from \$OPTIKUS_HOME/etc
+                          or from where the program was started)
+  -v / --version         print version/configuration and exit
+  -h / --help            print help and exit
+
+Report bugs to <vitkinet\@gmail.com>.
+EOT
+  exit(1);
+}
+
+sub parseOptions
+{
+  # set defaults...
+  $options{SHOW_PROGRESS}  = 0;
+  $options{AUTO_PACK}      = 1;
+  $options{PROGRESS_STEP}  = 1000;
+  $options{USE_SYMBOLS}    = 1;
+  $options{USE_SYMBOLS2}   = 0;
+  $options{WARN_DUP_RECS}  = 0;
+  $options{ENABLE_CONTROL} = 0;
+  # parse command line
+  my $args = Optikus::CmdLine->new(undef, \&printUsage);
+  $args->actions(
+    "-c --config" => sub { $options{COMMON_CONFIG} = $args->arg; },
+    "-d --domain" => sub { $options{DOMAIN_NAME} = $args->arg; },
+    # FIXME: we need options for fine filtering modules
+    #        eg. depending on module name
+    "-p --parse" => sub {
+        $options{INPUT} = $args->arg;
+        $options{ACTION} = "objdump";
+      },
+    "-r --resolve" => sub {
+        $options{INPUT} = $args->arg;
+        $options{ACTION} = "resolve";
+      },
+    "-T --trace" => sub { $options{TRACE} = $args->arg; },
+    "-m --make" => sub { $options{ACTION} = "make"; },
+    "-H --human-readable" => sub { $options{HUMAN_READABLE} = 1; },
+    "-f --force" => sub { $options{FORCE} = 1; },
+    "-E --enable-control" => sub { $options{ENABLE_CONTROL} = 1; },
+    "-l --log-file" => sub { $options{LOG} = $args->arg; },
+    "--reset-log" => sub { $options{RESET_LOG} = "reset"; },
+    "--no-warn-duplicates" => sub { $options{NO_WARN_DUPLICATES} = 1; },
+    "--test-addressing" => sub { $options{TEST_ADDRESSING} = 1; },
+    "-w --show-progress" => sub { $options{SHOW_PROGRESS} = 1; },
+    "--progress-step" => sub { $options{PROGRESS_STEP} = $args->arg; },
+    "--no-auto-pack" => sub { $options{AUTO_PACK} = 0; },
+    "--tatom-statistics" => sub { $options{TATOM_STATISTICS} = 1; },
+    "--sql" => sub { $options{SQL} = "oracle"; },
+    "-t --leave-temp" => sub { $options{LEAVE_TEMP_FILES} = 1; },
+    "-a --addresses" => sub { $options{ADDRESSES_ONLY} = 1; },
+    "-v --version" => sub {
+        print STDOUT $copyright;
+        print STDOUT "\n";
+        readConfig();
+        dumpOptions("cfg");
+        exit(0);
+      }
+  );
+  $args->parse(@ARGV);
+  # ...fix up options...
+  $options{USE_SYMBOLS2} = 1 if $options{HUMAN_READABLE};
+  $options{ACTION} = "make" unless $options{ACTION};
+  $options{MAX_SUBL_ARR_IND} = 100;
+  $options{SUBL_ARR_PLUS_MARK} = 0;
+  $options{SUBL_STRING_DEF_LEN} = 100;
+  printUsage("short") unless $options{ACTION};
+}
+
+sub readConfig
+{
+  # find common config file
+  $options{COMMON_CONFIG} = "$ENV{OPTIKUS_HOME}/etc/ocommon.ini"
+    unless $options{COMMON_CONFIG};
+  my $ini = Optikus::Ini->new($options{COMMON_CONFIG});
+  # get common defaults
+  $options{COMMON_ROOT} = $ini->param("DEFAULTS","common_root","string");
+  # get scan defaults
+  $options{DOMAIN_NAME} = $ini->param("SCAN_DEFAULTS","default_domain","string !0")
+    unless $options{DOMAIN_NAME};
+  die "domain not specified"
+    unless $options{DOMAIN_NAME};
+  $options{COMMON_ROOT} = substEnv($options{COMMON_ROOT});
+  setUnrollPathRoot($options{COMMON_ROOT});
+  $options{DBG_EXT} = $ini->param("SCAN_DEFAULTS","debug_ext","string default=.dbg");
+  $options{SYM_EXT} = $ini->param("SCAN_DEFAULTS","symbol_ext","string default=.sym");
+  $options{SEC_EXT} = $ini->param("SCAN_DEFAULTS","section_ext","string default=.sec");
+  $options{USE_ZIP} = $ini->param("SCAN_DEFAULTS","use_zip","boolean default=0");
+  $options{PROG_ZIP} = checkProg($ini->param("SCAN_DEFAULTS","prog_zip",
+                                          "string default=/bin/compress"));
+  $options{PROG_ZCAT} = checkProg($ini->param("SCAN_DEFAULTS","prog_zcat",
+                                           "string default=/bin/zcat"));
+  $options{ZIP_EXT} = $ini->param("SCAN_DEFAULTS","zip_ext","string default=.Z");
+  $options{CONTROL_CMD} = checkProg($ini->param("SCAN_DEFAULTS","control_cmd","string !0"),
+                                    $options{COMMON_ROOT});
+  $options{ENABLE_CONTROL} = $ini->param("SCAN_DEFAULTS","enable_control","boolean default=0")
+    unless $options{ENABLE_CONTROL};
+  # read binary utils map
+  my @tmp_binus = ();
+  $ini->table(\@tmp_binus,"BINUTILS_LIST","architecture=string !0","section=string !0");
+  die "section BINUTILS not found in $options{COMMON_CONFIG}\n" if $#tmp_binus < 0;
+  foreach my $tmp_bu (@tmp_binus)  {
+    my $arch = $tmp_bu->{architecture};
+    my $sec = $tmp_bu->{section};
+    my $bin_root = $ini->param($sec,"binroot","string");
+    my $bu = {};
+    $bu->{behavior} = $ini->param($sec,"behavior","string default=common");
+    foreach my $prog_key ("debugging","headers","symbols","symbols2","strip")  {
+      my $cmd = checkProg($ini->param($sec,$prog_key,"string !0"),$bin_root);
+      $bu->{$prog_key} = $cmd;
+    }
+    my $bit_order = $ini->param($sec,"bit_order","string !0");
+    if ($bit_order eq "natural") {
+      $bu->{reverse_bits} = 0;
+    } elsif ($bit_order eq "reverse") {
+      $bu->{reverse_bits} = 1;
+    } else {
+      die "\"bit_order\" must be \"natural\" or \"reverse\" in $options{COMMON_CONFIG}\n";
+    }
+    $binutils{$arch} = $bu;
+  }
+  # read domain map
+  my @tmp_doms = ();
+  $ini->table(\@tmp_doms,"DOMAINS","domain=string","config_file=string");
+  foreach my $tmp_dom (@tmp_doms)  {
+    $domains{$tmp_dom->{domain}} = $tmp_dom;
+  }
+  die "cannot find description for domain \"$options{DOMAIN_NAME}\"\n"
+    unless exists $domains{$options{DOMAIN_NAME}};
+  # other options
+  $options{DOMAIN_CONFIG} = unrollPath($domains{$options{DOMAIN_NAME}}->{config_file});
+  unless (defined($options{TRACE}))  {
+    $options{TRACE} = $ini->param("SCAN_DEFAULTS","trace_file","str",$options{TRACE});
+    if (defined($options{TRACE}) and $options{TRACE} ne '' and $options{TRACE} ne 'log')  {
+      $options{TRACE} = unrollPath($options{TRACE});
+    }
+  }
+  unless (defined($options{LOG}))  {
+    $options{LOG} = unrollPath($ini->param("SCAN_DEFAULTS","log_file","str",$options{LOG}));
+  }
+  $ini->DESTROY;
+  #dumpOptions;
+}
+
+# ===============================
+#              MAIN
+# ===============================
+
+my (%sections, %symbols, %symbols2, %combined);
+my ($need_readable, $dup_name_count);
+my $test_addr = 0;
+
+# human readable file for debugging and testing
+sub writeHumanReadableFile
+{
+  my $hr_file = shift;
+  my ($fmt);
+
+  open (HRF, "> $hr_file") or die "cannot write to $hr_file\n";
+  print HRF "; updated ".timeNow()."\n";
+
+  # write human readable section map
+  print HRF "\n[SECTIONS]\n";
+  $fmt = "{ %8s | 0x%08x }";
+  print HRF Optikus::Pretty::header($fmt,"section","start");
+  foreach my $v (sort keys %sections)  {
+    print HRF Optikus::Pretty::data($fmt,$v,$sections{$v});
+  }
+  print HRF Optikus::Pretty::footer($fmt);
+
+  # write human readable combined map
+  print HRF "\n[SYMBOLS]\n";
+  $fmt = "{ %-28s | %-10s | %-10s | %-2s | %-8s | %-2s | %-2s | %-4s }";
+  print HRF Optikus::Pretty::header($fmt,"symbol","adr1","adr2",
+                                    "seg1","seg2","mod1","mod2","size");
+  my ($s1,$s2);
+  my @keys = sort {
+               $s1 = $combined{$a}{'seg1'};
+               $s2 = $combined{$b}{'seg2'};
+               $s1 = '?' unless $s1;
+               $s2 = '?' unless $s2;
+               return $s1 ne $s2 ? $s1 cmp $s2 : $a cmp $b;
+             } keys(%combined);
+  foreach my $name (@keys)  {
+    unless ($combined{$name}{'is_sym'})  {
+      $combined{$name}{'adr1'} = $combined{$name}{'seg1'} = "?";
+    }
+    unless ($combined{$name}{'is_sym2'})  {
+      $combined{$name}{'adr2'} = $combined{$name}{'seg2'} = "?";
+      $combined{$name}{'mod1'} = $combined{$name}{'mod2'} = "?";
+      $combined{$name}{'size'} = "?";
+    }
+    print HRF Optikus::Pretty::data( $fmt,$name,
+          $combined{$name}{'adr1'},$combined{$name}{'adr2'},
+          $combined{$name}{'seg1'},$combined{$name}{'seg2'},
+          $combined{$name}{'mod1'},$combined{$name}{'mod2'},
+          $combined{$name}{'size'}
+        );
+  }
+  print HRF Optikus::Pretty::footer($fmt);
+
+  # write quarks into readable file
+  print HRF "\n[QUARKS]\n";
+  print HRF "; total: ".($#quarks + 1)." quarks\n";
+  $fmt = "{%5d | %-37s|%1s|%1s| 0x%08x |%4d |%3d|%3d |%5d|%3d|%3d|%3d|%3d|%3d|%3d|%3d|%3d}";
+  my $hdr = Optikus::Pretty::header($fmt,
+                 "ikey","path","p","t","adr","off","len","boff","blen",
+                 "c1","c2","c3","c4","d1","d2","d3","d4");
+  my $n = 0;
+  my $step = 26;
+  foreach my $cd (@quarks)  {
+    print HRF $hdr
+      if $n++ % $step == 0 and ($n < 3 or $#quarks - $n > $step/2);
+    print HRF Optikus::Pretty::data($fmt,
+                   $cd->{ikey},'"'.$cd->{path}.'"',$cd->{ptr},$cd->{type},
+                   $cd->{adr},$cd->{off},$cd->{len},$cd->{bit_off},$cd->{bit_len},
+                   $cd->{coef0},$cd->{coef1},$cd->{coef2},$cd->{coef3},
+                   $cd->{dims0},$cd->{dims1},$cd->{dims2},$cd->{dims3}
+              );
+  }
+  print HRF Optikus::Pretty::footer($fmt);
+  print HRF "\n\n";
+
+  close HRF;
+}
+
+sub cmdWrite
+{
+  my ($cmd,$file,$src,$res) = @_;
+  #print "- WRITE cmd=\"$cmd\" file=\"$file\" src=\"$src\"\n";
+  $cmd =~ s{\*}{$src}g;
+  $file =~ s{\*}{$src}g;
+  if ($options{USE_ZIP})  {
+    $cmd = "$cmd | $options{PROG_ZIP} > $file.$options{ZIP_EXT}";
+  } else {
+    $cmd = "$cmd > $file";
+  }
+  $$res = $file if $res;
+  #print "WRITE=\"$cmd\"\n";
+  return $cmd;
+}
+
+sub cmdRead
+{
+  my ($file,$src) = @_;
+  $file =~ s{\*}{$src}ge;
+  if ($options{USE_ZIP})  {
+    $file = "$options{PROG_ZCAT} $file |";
+  } else {
+    $file = "< $file";
+  }
+  return $file;
+}
+
+# make all modules
+sub makeAllModules
+{
+  # start
+  logOpen($options{LOG});
+  traceOpen($options{TRACE});
+  my $ini = Optikus::Ini->new($options{DOMAIN_CONFIG});
+  # read defaults
+  my $domain = $ini->param("DEFAULTS","domain_name","string");
+  $domain = $options{DOMAIN_NAME} unless $domain;
+  logMsg('info','MAKE',"==== make domain \"$domain\" ====");
+  my $mod_root = $ini->param("DEFAULTS","module_root","string");
+  $mod_root = unrollPath($mod_root);
+  # read subjects
+  my %subject = ();
+  my @tmp_subjs = ();
+  $ini->table (\@tmp_subjs, "SUBJECTS",
+               "subject=str","agent=str","arch=str","symtable=str","avail=str");
+  die "ERROR: should have at least one subject\n" if $#tmp_subjs < 0;
+  foreach my $tmp_subj (@tmp_subjs)  {
+    $subject{$tmp_subj->{subject}} = $tmp_subj;
+  }
+  # read modules
+  my @modules = ();
+  $ini->table(\@modules, "MODULES",
+              "subject=str","nickname=str","unit=int","make=bool",
+              "mod_file=str","quark_file=str");
+  die "ERROR: should have at least one module\n" if $#modules < 0;
+  my ($mod, $subj);
+  foreach my $mod (@modules)  {
+    $mod->{mod_file} = unrollPath(mergePath($mod_root, substEnv($mod->{mod_file})));
+    $mod->{quark_file} = unrollPath(mergePath($mod_root, $mod->{quark_file}));
+  }
+  $ini->DESTROY;
+  # actually make
+  foreach $mod (@modules)  {
+    my $display = "\"$mod->{nickname}\@$mod->{subject}\"";
+    unless ($mod->{make})  {
+      logMsg('warn',"MAKE","skip disabled module $display");
+      next;
+    }
+    $subj = $subject{$mod->{subject}};
+    die "ERROR: subject \"$mod->{subject}\" not found\n" unless $subj;
+    my $bu = $binutils{$subj->{arch}};
+    die "ERROR: unknown architecture $subj->{arch} for $display\n" unless $bu;
+    makeSingleModule($display,$mod,$subj,$bu);
+  }
+  # done
+  logMsg('info','MAKE',"======== DONE ========");
+  traceClose();
+  logClose();
+}
+
+# parse symbol file in "nm" format
+sub readSymbolFile_nm
+{
+  my ($file,$display,$format) = @_;
+  open (SYM_IN, "< $file") or die "cannot read from $file\n";
+  my %segment_name = (
+    'T' => 'T',    # text
+    'D' => 'D',    # data
+    'B' => 'B',    # bss
+    'U' => '-',    # undefined external reference - skip
+    'W' => '-',    # symbol is weak symbol. - skip
+    'r' => '-',    # what's it ? - skip
+    'R' => 'R',    # symbol is in a read only data section , later it's fix on T.
+    'C' => '-',    # symbol is common.
+    'I' => '-',    # symbol is an indirect reference to another symbol 
+    'N' => '-',    # symbol is debugging symbol.
+    'S' => 'B',    # symbol is in an uninitialized data section for small objects
+    'G' => 'D',    # symbol is in an initialized data section for small objects.
+    'A' => '-'     # symbol is absolute value.
+    # FIXME: more names needed
+  );
+  while (<SYM_IN>)  {
+    #                 addr          seg    name
+    next unless m/^([\da-f]+)\s(\w)\s([\w\@\.]+)$/i;
+    my ($name, $adr, $raw_seg) = ($3, hex($1), $2);
+    my $seg = $segment_name{$raw_seg};
+    $seg = '?' unless $seg;
+    logMsg('error',"PARSE_NM","The symbol $name is common symbol") if $raw_seg eq 'C';
+    next if $seg eq '-';
+    $symbols{$name}{'seg'} = $seg;
+    $symbols{$name}{'adr'} = $adr;
+    if ($need_readable)  {
+      $name .= "##".(++$dup_name_count)
+        if exists $combined{$name}{'is_sym'};
+      $combined{$name}{'is_sym'} = 1;
+      $combined{$name}{'seg1'} = $seg;
+      $combined{$name}{'adr1'} = $adr;
+    }
+  }
+  close SYM_IN;
+}
+
+# parse symbol file in "objdump" format
+sub readSymbolFile_objdump
+{
+  my ($file,$display,$format) = @_;
+  open(SYM2_IN, "< $file") or die "cannot read from $file\n";
+  while (<SYM2_IN>)  {
+    #                 addr          seg    name
+    next unless m/^([\da-f]+)\s(\w)\s+(\w+)\s+\.(\w+)\s+([\da-f]+)\s+([\w\@\.]+)\s*$/i;
+    my ($adr, $mod1, $mod2, $raw_seg, $size, $name) = (hex($1), $2, $3, $4, hex($5), $6);
+    # FIXME: need to translate segment names
+    #        they somehow depend on modifiers
+    my $seg = $raw_seg;
+    $symbols2{$name}{'seg'} = $seg;
+    $symbols2{$name}{'adr'} = $adr;
+    if ($need_readable)  {
+      $name .= "##".(++$dup_name_count)
+        if exists $combined{$name}{'is_sym2'};
+      $combined{$name}{'is_sym2'} = 1;
+      $combined{$name}{'seg2'} = $seg;
+      $combined{$name}{'adr2'} = $adr;
+      $combined{$name}{'mod1'} = $mod1;
+      $combined{$name}{'mod2'} = $mod2;
+      $combined{$name}{'size'} = $size;
+    }
+  }
+  close SYM2_IN;
+}
+
+# parse object segment/section file taken from objdump
+sub readSectionFile_objdump
+{
+  my ($file,$display,$format) = @_;
+  open(SEC_IN, "< $file") or die "cannot read from $file\n";
+  while (<SEC_IN>)  {
+    chop; chomp;
+    next unless
+      #     idx   name          size       vma          lma        file_off   algn
+      m/^\s+\d+\s+\.([\w\.]+)\s+[\da-f]+\s+([\da-f]+)\s+[\da-f]+\s+[\da-f]+\s+\d+\*+\d+\s*$/;
+    my ($name, $addr) = ($1, hex($2));
+    next if $name =~ /^gnu/ or $name =~ /^debug/ or $name =~ /^stab/;
+    $sections{$name} = $addr;
+  }
+  close SEC_IN;
+}
+
+# parse object segment/section file taken from size, select output berkeley style
+# sparc-sun-solaris2-size -B
+sub readSectionFile_size1
+{
+  my ($file,$display,$format) = @_;
+  open(SEC_IN, "< $file") or die "cannot read from $file\n";
+  while (<SEC_IN>)  {
+    chop; chomp;
+    #          text    data    bss     dec      hex       filename
+    if (  /\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([\da-f]+)\s+.+/ ){
+      $sections{'T'} = $1;
+      $sections{'D'} = $2;
+      $sections{'B'} = $3;
+      $sections{'dec'} = $4;
+    }
+  }
+  close SEC_IN;
+}
+
+# parse object segment/section file taken from size , select output sysv style
+# sparc-sun-solaris2-size -A
+sub readSectionFile_size
+{
+  my ($file,$display,$format) = @_;
+  open(SEC_IN, "< $file") or die "cannot read from $file\n";
+  $sections{'R'} = 0;
+  while (<SEC_IN>)  {
+    chop; chomp;
+    if (  /\.(\w+)\s+(\d+)\s+(\d+)/ ){
+      $sections{'T'} = $2 if ( $1 eq "text" );
+      $sections{'D'} = $2 if ( $1 eq "data" );
+      $sections{'B'} = $2 if ( $1 eq "bss" );
+      $sections{'R'} = $2 if ( $1 eq "rodata" );
+    }
+  }
+  # print $sections{'T'}," ",$sections{'D'}," ",$sections{'B'}," ",$sections{'R'};
+  close SEC_IN;
+}
+
+
+# fix up addresses of global variables
+# possible kinds of 'behavior' (see below): perfect, absolute, relative.
+sub fixUpAddresses
+{
+  my ($behavior, $display, $obj_ikey) = @_;
+
+  if ($behavior eq 'perfect')  {
+    # objdump returns absolute addresses which are OK
+    foreach my $glob (@globals)  {
+      $glob->{obj_seg} = 'A';  # means the address is absolute
+      $glob->{obj_ikey} = $obj_ikey;
+    }
+    return;
+  }
+
+  if ($behavior eq 'absolute')  {
+    # we still need absolute addresses but objdump is broken
+    foreach my $glob (@globals)  {
+      $glob->{obj_ikey} = $obj_ikey;
+      my $name = $glob->{name};
+      if (exists $symbols{$name}{'adr'})  {
+        $glob->{adr} = $symbols{$name}{'adr'};
+        my $seg = $symbols{$name}{'seg'};  # not used
+        $glob->{obj_seg} = 'A';  # mark absolute address
+      } else {
+        $glob->{obj_seg} = '?';
+        if ($options{TEST_ADDRESSING}) {
+          $glob->{adr} = ($test_addr += 16);
+        } else {
+          logMsg('warn',"ADDRESSING","symbol \"$name\" not found in $display");
+          $glob->{adr} = 0;
+        }
+      }
+    }
+    return;
+  }
+
+  if ($behavior eq 'relative' ) {
+    # relative addresses for USPARC VxWorks 64-bit
+    foreach my $glob (@globals)  {
+      $glob->{obj_ikey} = $obj_ikey;
+      my $name = $glob->{name};
+      if (exists $symbols{$name}{'adr'})  {
+        $glob->{adr} = $symbols{$name}{'adr'};
+        my $seg = $symbols{$name}{'seg'};
+        if (exists $sections{$seg})  {
+          $glob->{obj_seg} = $seg;
+          $glob->{adr} = $symbols{$name}{'adr'} + $sections{'T'} if ($seg eq 'R');
+          $glob->{obj_seg} = 'T' if ($seg eq 'R');
+          if ($glob->{adr} < 0)  {
+            logMsg('error',"ADDRESSING", "symbol \"$name\" is out of segment in $display");
+            $glob->{obj_seg} = '?';
+            $glob->{adr} = 0;
+          }
+        } else {
+          $glob->{obj_seg} = '?';
+          if ($options{TEST_ADDRESSING}) {
+            $glob->{adr} = ($test_addr += 16);
+          } else {
+            logMsg('warn',"ADDRESSING","symbol \"$name\" not found in $display");
+            $glob->{adr} = 0;
+          }
+        }
+      } else {
+        $glob->{obj_seg} = '?';	
+        if ($options{TEST_ADDRESSING}) {
+          $glob->{adr} = ($test_addr += 16);
+        } else {
+          logMsg('warn',"ADDRESSING","symbol \"$name\" not found in $display");
+          $glob->{adr} = 0;
+        }
+      }
+    }
+    return;
+  }
+
+  die "unknown behavior \"$behavior\" for module $display\n";
+}
+
+# make single module
+sub makeSingleModule
+{
+  my ($display, $mod, $subj, $bu) = @_;
+  my ($cmd, $tmp_in, $tmp_out, $fmt, $v);
+
+  # clear up schema
+  %sections = ();
+  %symbols = ();
+  %symbols2 = ();
+  %combined = ();
+  initSchema();
+
+  $need_readable = $options{HUMAN_READABLE};
+  $dup_name_count = 0;
+  my ($mod_file, $chu_file, $tmp_file);
+  my ($dbg_file, $sec_file, $sym_file, $sym2_file, $hr_file);
+
+  # check whether PSV exists
+  $mod_file = $mod->{mod_file};
+  $chu_file = $mod->{quark_file};
+
+  $tmp_file = fileOf($mod_file);
+  $tmp_file =~ s{\.[^\.]*$}{};
+  $tmp_file = mergePath(dirOf($chu_file), "tmp-$tmp_file");
+
+  if (not $options{FORCE} and not needsMake($chu_file,$mod_file))  {
+    logMsg('info','MAKE',"module $display is up to date");
+    return;
+  }
+  logMsg('info','MAKE',"make module $display");
+
+  if ($options{ADDRESSES_ONLY})  {
+    readQuarks($chu_file);
+    # FIXME: we need to reconstruct 'globals' from quarks
+    #        and handle addresses which are already relative.
+    die "address-only mode is not implemented\n";
+  } else {
+    # make debugging info
+    $dbg_file = $tmp_file.$options{DBG_EXT};
+    if (needsMake($dbg_file,$mod_file) or $options{FORCE})  {
+      $cmd = cmdWrite($bu->{debugging},$dbg_file,$mod_file,\$tmp_out);
+      logMsg('info','MAKE',"extract DEBUGGING from ".pathDisplay($mod_file));
+      logMsg('debug','MAKE',"executing: $cmd");
+      # FIXME: the command can write to stderr, we need "2> errors.tmp"
+      system($cmd);
+      die "ERROR[DBG]: failed to make \"$tmp_out\"\n" unless (-e $tmp_out);
+      $dbg_file = $tmp_out;
+    }
+    # parse debugging info
+    $tmp_in = cmdRead($dbg_file);
+    # FIXME: source path prefixes should be configurable
+    #        current values are suitable only for FTC sources
+    $options{SOURCES_PREFIX} = "/home/tr10_2/trftc/SMLIB_V_04_30_14";
+    $options{SOURCES_CWD}    = "~/TECHNOLOGY";
+    $options{SOURCES_CWD} =~ s/\~/$options{SOURCES_PREFIX}/g;
+    parseDebuggingInfo($tmp_in);
+  }
+
+  # make and parse section file
+  # FIXME: the work might be redundant if 'behavior' is 'perfect' etc.
+  $sec_file = $tmp_file.$options{SEC_EXT};
+  if (needsMake($sec_file,$mod_file) or $options{FORCE})  {
+    $cmd = cmdWrite($bu->{headers},$sec_file,$mod_file,\$tmp_out);
+    logMsg('debug','MAKE',"extract SECTIONS from ".pathDisplay($mod_file));
+    logMsg('debug','MAKE',"executing: $cmd");
+    system($cmd);
+    die "ERROR[SYM]: failed to make \"$tmp_out\"\n" unless (-e $tmp_out);
+    $sec_file = $tmp_out;
+  }
+  readSectionFile_size($sec_file,$display,"format0");
+
+  if ($options{USE_SYMBOLS2})  {
+    # make and parse symbol file using objdump
+    # FIXME: I'm still not defined whichever is better, objdump or nm
+    #        nm seems to be simpler...
+    $sym2_file = $tmp_file.".sym2";
+    if (needsMake($sym2_file,$mod_file) or $options{FORCE})  {
+      $cmd = cmdWrite($bu->{symbols2},$sym2_file,$mod_file,\$tmp_out);
+      logMsg('debug','MAKE',"extract SYMBOLS-OD from ".pathDisplay($mod_file));
+      logMsg('debug','MAKE',"executing: $cmd");
+      system($cmd);
+      die "ERROR[SEC]: failed to make \"$tmp_out\"\n" unless (-e $tmp_out);
+      $sym2_file = $tmp_out;
+    }
+    readSymbolFile_objdump($sym2_file,$display,"format2");
+  }
+
+  if ($options{USE_SYMBOLS})  {
+    # make and parse symbol file using nm
+    $sym_file = $tmp_file.$options{SYM_EXT};
+    if (needsMake($sym_file,$mod_file) or $options{FORCE})  {
+      $cmd = cmdWrite($bu->{symbols},$sym_file,$mod_file,\$tmp_out);
+      logMsg('debug','MAKE',"extract SYMBOLS-NM from ".pathDisplay($mod_file));
+      logMsg('debug','MAKE',"executing: $cmd");
+      system($cmd);
+      die "ERROR[SEC]: failed to make \"$tmp_out\"\n" unless (-e $tmp_out);
+      $sym_file = $tmp_out;
+    }
+    readSymbolFile_nm($sym_file,$display,"format1");
+  }
+
+  # now it's high time to fix up addresses
+  # depending on architecture 'behavior'
+  fixUpAddresses($bu->{behavior}, $display, $mod->{unit});
+
+  # assemble quarks and dump the result
+  $reverse_bits = $bu->{reverse_bits};
+  assembleQuarks("strings,nooldstyle");
+  writeQuarks($chu_file,$hr_file);
+
+  # create SQL script
+  if ($options{SQL})  {
+    my $sql_file = $tmp_file.".sql";
+    dumpSql($sql_file,"delete,quarks,$options{SQL}",$mod->{unit});
+  }
+
+  # human readable file for debugging and testing
+  if ($options{HUMAN_READABLE})  {
+    $hr_file = $tmp_file."-hr.ini";
+    writeHumanReadableFile($hr_file);
+  }
+
+  # remove temporary files
+  $sym_file  = "////^^^---///" unless $sym_file;
+  $sym2_file = "////^^^---///" unless $sym2_file;
+  unless ($options{LEAVE_TEMP_FILES})  {
+    unlink($dbg_file, $sec_file, $sym_file, $sym2_file);
+  }
+
+  # free up memory
+  initSchema();
+}
+
+
+# main
+sub main
+{
+  $ENV{OPTIKUS_HOME} = unrollPath(mergePath(dirOf($0),".."))
+    unless $ENV{OPTIKUS_HOME};
+  parseOptions();
+  readConfig();
+  if ($options{ACTION} eq "resolve")  {
+    logOpen($options{LOG});
+    resolveTest(unrollPath($options{INPUT}));
+    logClose();
+    return;
+  }
+  if ($options{ACTION} eq "objdump")  {
+    $options{DEBUG_RECORD_PARSING} = 0;
+    $options{DEBUG_ENUMERATION_PARSING} = 0;
+    $options{NO_LOG_TIME} = 1;
+    logOpen($options{LOG});
+    traceOpen($options{TRACE});
+    # FIXME: source path prefixes should be configurable
+    #        current values are suitable only for FTC sources
+    $options{SOURCES_PREFIX} = "$ENV{OPTIKUS_HOME}/src";
+    $options{SOURCES_CWD}    = "~/src";
+    $options{SOURCES_CWD} =~ s/\~/$options{SOURCES_PREFIX}/g;
+    parseDebuggingInfo($options{INPUT});
+    $reverse_bits = 0;
+    assembleQuarks("strings,nooldstyle");
+    dumpSql($options{INPUT}."-ora.sql","delete,quarks,$options{SQL}")
+      if $options{SQL};
+    writeQuarks($options{INPUT}."-chu.psv");
+    traceClose();
+    logClose();
+    return;
+  }
+  if ($options{ACTION} eq "make")  {
+    system("$options{CONTROL_CMD} stop") if $options{ENABLE_CONTROL};
+    makeAllModules();
+    system("$options{CONTROL_CMD} start") if $options{ENABLE_CONTROL};
+    return;
+  }
+  printUsage("short");
+}
+
+main;
+

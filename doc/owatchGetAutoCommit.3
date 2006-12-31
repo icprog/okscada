@@ -1,0 +1,30 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHGETAUTOCOMMIT" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchGetAutoCommit \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBbool_t owatchGetAutoCommit (void)\fR;
+.sp
+.SH "DESCRIPTION"
+Returns current value of the \fBauto_commit\fR library parameter. This parameter changes the behavior of data modification routines. If \fBauto_commit\fR is \fITRUE\fR, invocations of \fBowatchWriteXXX()\fR perform immediate data modification. If \fBauto_commit\fR is \fIFALSE\fR, the data modification routines search for target data samples and buffer modification requests on subjects. The actual modification will be performed in all affected subjects after the next \fBowatchCommit()\fR call.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

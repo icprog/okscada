@@ -1,0 +1,68 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHGETASYNCTIMEOU" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchGetAsyncTimeout \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBint owatchGetAsyncTimeout (void)\fR;
+.sp
+.SH "DESCRIPTION"
+The function returns current value of the async_timeout library parameter. A number of library routines can initiate various asynchronous operations (connection setup, modification of a subject parameter etc) and return the owop_t operation handle.
+.sp
+The \fIasync_timeout\fR parameter affects the behavior of asynchronous library routines as follows:
+.sp
+.TP 3
+\(bu
+If
+\fIasync_timeout\fR
+is equal to
+\fIOWATCH_NOWAIT\fR, asynchronous routines are non\-blocking. If an operation can complete immediately, the call returns
+\fIOWOP_OK\fR. If the arguments are invalid, and the operation is obviously incorrect, it is marked as completed with failure. Depending on the operation semantics the asynchronous routine will either return
+\fIOWOP_ERROR\fR
+(in this case the reason for failure can be inquired only by registering the asynchronous completion handler), or will return the operation descriptor (then the error code can be inquired by passing the operation descriptor to the owatchWaitOp function). If the operation cannot be completed immediately, the asynchronous function will put it in the wait queue and return the operation descriptor. The operation will complete with wither success or failure later during the subsequent calls of
+\fBowatchWork()\fR
+and
+\fBowatchWaitOp()\fR. Unless the operation descriptor is passed to
+\fBowatchWaitOp()\fR
+or
+\fBowatchCancelOp()\fR, it is marked as occupied. After calling
+\fBowatchWaitOp()\fR
+or
+\fBowatchCancelOp()\fR
+the descriptor will be freed. Descriptors shall be periodically freed since the library limits the number of simultaneously occupied descriptors.
+.TP
+\(bu
+If
+\fIasync_timeout\fR
+is
+\fIOWATCH_FOREVER\fR, asynchronous routines are blocking. An asynchronous routine will block the application until the operation is completed with success or failure. If the operation completes with success, the asynchronous routine returns
+\fIOWOP_OK\fR. Otherwise
+\fIOWOP_ERROR\fR
+is returned, and the error code can be acquired only by registering the asynchronous completion handler. In this mode the occupied descriptors are never left after asynchronous operations complete.
+.TP
+\(bu
+If
+\fIasync_timeout\fR
+is a positive number, then an asynchronous routine can block program at most for the given number of milliseconds. If the operation completes with success before the deadline, the routine returns OWOP_OK. If the operation completes with failure before the deadline, the asynchronous routine returns the operation descriptor. The descriptor can be freed and the error code can be obtained via owatchWaitOp. If the operation does not complete before the deadline, its descriptor is still returned. The operation can be waited for by
+\fBowatchWaitOp()\fR
+or aborted by
+\fBowatchCancelOp()\fR.
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

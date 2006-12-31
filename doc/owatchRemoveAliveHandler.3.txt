@@ -1,0 +1,46 @@
+owatchRemoveAliveHandler(3)
+===========================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchRemoveAliveHandler - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchRemoveAliveHandler (OwatchAliveHandler_t 'phand')*;
+
+
+DESCRIPTION
+-----------
+This routine deactivates and removes the given state change handler.
+
+
+RETURN VALUE
+------------
+Returns 'OK' if the handler was successfully removed,
+or 'ERROR' if the handler was not found.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

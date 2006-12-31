@@ -1,0 +1,99 @@
+owatchWaitOp(3)
+===============
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchWaitOp - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchWaitOp (oop_t 'op', int 'timeout', int $$*$$'err_code')*;
+
+
+DESCRIPTION
+-----------
+If the operation descriptor is freed or invalid, or the 'timeout' value is
+illegal, this routine returns 'ERROR' and stores the error status of ERROR at
+the 'err_code' pointer if it is non-null (in the allowed case of null 'err_code'
+pointer, the error status is not stored).
+
+If the operation descriptor is valid and occupied, and the 'timeout' argument is
+equal to 'OWATCH_NOWAIT', the routine immediately returns control to the caller
+and stores current operation status at the non-null 'err_code' pointer. If the
+operation has completed with success, its status is 'OK' (*0*), and the routine
+also returns 'OK'. If the operation has not yet completed, its status is *1*, the
+routine returns 'ERROR', and the descriptor shall be freed later by means of
+*owatchCancelOp* or *owatchWaitOp*. If the operation has failed, the operation
+status depends on the failure, the descriptor is freed, and the routine
+returns 'ERROR'.
+
+If the descriptor is valid and occupied, and the 'timeout' argument is a
+positive number, the routine can block caller for no more than the given
+number of milliseconds.
+
+If the operation successfully completes before the deadline, the operation
+status is *0* (it is stored at the address pointed to by 'err_code' if it is
+non-null), the operation descriptor is freed and the routine returns 'OK'. If
+the operation fails before the deadline the operation status depends on the
+failure, and the routine returns 'ERROR'. If the operation does not complete
+before the timeout, the operation status is *1*, the function returns 'ERROR',
+and the operation descriptor shall be freed later by means of *owatchCancelOp*
+or *owatchWaitOp*.
+
+If the 'op' operation descriptor argument is equal to 'OWOP_ALL' and the 'timeout'
+argument is equal to 'OWOP_NOWAIT', the routine returns immediately. Occupied
+operation descriptors (if any) are not freed in this case. If at the moment of
+the call there are no active pending operations, the routine returns 'OK', and
+the operation status depends on the state of completed but not freed
+operations. If among them there is at least one operation that had completed
+with failure, the operation status is 'ERROR', otherwise it is 'OK'. Otherwise,
+if there are active pending operations, the routine immediately returns 'ERROR'.
+The operation status is *1* if there are no operations completed with failure
+but not freed, and the status is 'ERROR' if there is at least one such
+operation.
+
+If the operation argument is 'OWOP_ALL' and the timeout argument is positive,
+the routine blocks caller until either the given deadline occurs or all the
+active pending operations get completed. All the occupied descriptors of the
+operations that get completed by the moment of return from the routine, are
+freed. The returned code and operation status are similar to the the previous
+case.
+
+If the 'op' operation argument is 'OWOP_ALL', and the 'timeout' argument is
+equal to 'OWOP_FOREVER', the routine blocks calling program until all the active
+pending operations get completed. When the routine returns, all the occupied
+descriptors get freed. If at the moment of call there are no active pending
+operations, the routine immediately returns 'OK', and sets the operation status
+either to 'ERROR', if at least one of the completed but not yet freed operations
+had completed with failure, or to 'OK' if all the operations had completed with
+success. If there are any active pending operations, the routine waits until
+they complete or get aborted. If there are active or occupied descriptors of
+operations that had completed with failure, the routine returns 'ERROR' and sets
+the operation status to 'ERROR'. Otherwise, i.e. if all the operations had
+completed with success, the routine returns 'OK' and sets the operation status
+to 'OK'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

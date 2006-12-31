@@ -1,0 +1,49 @@
+owatchCancelOp(3)
+=================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchCancelOp - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchCancelOp (owop_t 'op')*;
+
+
+DESCRIPTION
+-----------
+This routine aborts execution of the 'op' operation and frees its descriptor.
+If the argument is equal to 'OWOP_ALL', the routine aborts all active operations
+and frees their descriptors. The operation descriptors that are already
+completed but not yet freed, will be freed as well.
+
+
+RETURN VALUE
+------------
+The routine returns 'OK', if the operation descriptor was valid and occupied
+before the call. Otherwise, the routine returns 'ERROR'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

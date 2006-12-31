@@ -1,0 +1,973 @@
+
+>>> owatchInit(3)
+   oret_t  owatchInit(const char *'client_name')
+
+Initializes the library and set the reference 'client_name'.
+Sets the library parameter 'async_timeout' to 'OWATCH_NOWAIT'.
+Sets the 'auto_commit' library parameter to 'TRUE'.
+Must be called before any other library routine.
+Called several times in a row, the routine resets previous initializations
+(i.e. the behavior is *FIXME* non-recursive).
+
+(*RETVAL*)
+Returns 'ERROR' if 'client_name' is null or empty, on memory allocation errors
+and other system failures. On success returns 'OK'.
+
+
+>>> owatchExit(3)
+   oret_t  owatchExit (void)
+
+Disconnects from server, if the connection was established. Interrupts all
+deferred operations. Deallocates internal library data.
+(*RETVAL*)
+Always returns 'OK'.
+
+
+>>> owatchGetFileHandles(3)
+   oret_t  owatchGetFileHandles (int *'file_handle_buf', int *'buf_size_ptr')
+
+The library internally uses sockets for interaction with the data hub. One can
+call *owatchWork()* to wait for events on the socket descriptors. However, if a
+user program has to wait for events on other file descriptors, a combined
+select-wait operation is required, and the program needs to know the 'watch'
+socket descriptors. This routine fills the 'file_handle_buf' array by numbers of
+the internal socket descriptors. The 'buf_size' variable referenced by the
+second argument should contain maximum number of descriptors the array can
+hold without overflow.
+(*RETVAL*)
+If the size is enough, the array will be filled by
+descriptors, the function will put their number in the variable pointed to by
+'buf_size_ptr' and return 'OK'. If the array would overflow, the function will
+return 'ERROR' and put the required minimum array size in '*buf_size_ptr'. If
+first or second argument is a null pointer, the function immediately returns
+'ERROR'.
+
+
+>>> owatchWork(3)
+   oret_t  owatchWork (int 'timeout_msec')
+
+This function checks for timer or socket events and handles them, probably
+calling user callback functions.
+
+- If the argument is 'OWATCH_NOWAIT', the function does not block and handles
+  only ready events.
+
+- If the argument is 'OWATCH_FOREVER', the function waits for a next event
+  and returns after handling it.
+
+- If the argument is a positive integer, the function waits for events for
+  the duration of the given number of milliseconds and handles them, if any
+  (blocking behavior with fixed duration).
+
+(*RETVAL*)
+The function returns 'ERROR' if the library is not initialized, or the argument
+is negative and is not 'OWATCH_FOREVER'. Otherwise, the function returns 'OK'.
+
+
+>>> owatchGetAsyncTimeout(3)
+   int  owatchGetAsyncTimeout (void)
+ 
+The function returns current value of the async_timeout library parameter.
+A number of library routines can initiate various asynchronous operations
+(connection setup, modification of a subject parameter etc) and return the
+owop_t operation handle.
+
+The 'async_timeout' parameter affects the behavior of asynchronous library
+routines as follows:
+
+- If 'async_timeout' is equal to 'OWATCH_NOWAIT', asynchronous routines are
+non-blocking. If an operation can complete immediately, the call returns
+'OWOP_OK'. If the arguments are invalid, and the operation is obviously
+incorrect, it is marked as completed with failure. Depending on the operation
+semantics the asynchronous routine will either return 'OWOP_ERROR' (in this case
+the reason for failure can be inquired only by registering the asynchronous
+completion handler), or will return the operation descriptor (then the error
+code can be inquired by passing the operation descriptor to the owatchWaitOp
+function). If the operation cannot be completed immediately, the asynchronous
+function will put it in the wait queue and return the operation descriptor.
+The operation will complete with wither success or failure later during the
+subsequent calls of *owatchWork()* and *owatchWaitOp()*. Unless the operation
+descriptor is passed to *owatchWaitOp()* or *owatchCancelOp()*, it is marked as
+occupied. After calling *owatchWaitOp()* or *owatchCancelOp()* the descriptor
+will be freed. Descriptors shall be periodically freed since the library limits
+the number of simultaneously occupied descriptors.
+
+- If 'async_timeout' is 'OWATCH_FOREVER', asynchronous routines are blocking.
+An asynchronous routine will block the application until the operation is
+completed with success or failure. If the operation completes with success,
+the asynchronous routine returns 'OWOP_OK'. Otherwise 'OWOP_ERROR' is returned,
+and the error code can be acquired only by registering the asynchronous
+completion handler. In this mode the occupied descriptors are never left after
+asynchronous operations complete.
+
+- If 'async_timeout' is a positive number, then an asynchronous routine can
+block program at most for the given number of milliseconds. If the operation
+completes with success before the deadline, the routine returns OWOP_OK. If
+the operation completes with failure before the deadline, the asynchronous
+routine returns the operation descriptor. The descriptor can be freed and the
+error code can be obtained via owatchWaitOp. If the operation does not
+complete before the deadline, its descriptor is still returned. The operation
+can be waited for by *owatchWaitOp()* or aborted by *owatchCancelOp()*.
+
+
+>>> owatchSetAsyncTimeout(3)
+   oret_t  owatchSetAsyncTimeout (int 'timeout')
+
+This routine modifies the value of the *async_timeout* library parameter. The
+new parameter value will affect the behavior of the asynchronous library
+routines.
+
+(*RETVAL*)
+This function returns 'OK' if the argument is positive or is one of
+'OWATCH_NOWAIT' or 'OWATCH_FOREVER'. Otherwise, the argument is illegal and the
+function returns 'ERROR'.
+
+
+>>> owatchWaitOp(3)
+   oret_t  owatchWaitOp (oop_t 'op', int 'timeout', int *'err_code')
+
+If the operation descriptor is freed or invalid, or the 'timeout' value is
+illegal, this routine returns 'ERROR' and stores the error status of ERROR at
+the 'err_code' pointer if it is non-null (in the allowed case of null 'err_code'
+pointer, the error status is not stored).
+
+If the operation descriptor is valid and occupied, and the 'timeout' argument is
+equal to 'OWATCH_NOWAIT', the routine immediately returns control to the caller
+and stores current operation status at the non-null 'err_code' pointer. If the
+operation has completed with success, its status is 'OK' (*0*), and the routine
+also returns 'OK'. If the operation has not yet completed, its status is *1*, the
+routine returns 'ERROR', and the descriptor shall be freed later by means of
+*owatchCancelOp* or *owatchWaitOp*. If the operation has failed, the operation
+status depends on the failure, the descriptor is freed, and the routine
+returns 'ERROR'.
+
+If the descriptor is valid and occupied, and the 'timeout' argument is a
+positive number, the routine can block caller for no more than the given
+number of milliseconds.
+
+If the operation successfully completes before the deadline, the operation
+status is *0* (it is stored at the address pointed to by 'err_code' if it is
+non-null), the operation descriptor is freed and the routine returns 'OK'. If
+the operation fails before the deadline the operation status depends on the
+failure, and the routine returns 'ERROR'. If the operation does not complete
+before the timeout, the operation status is *1*, the function returns 'ERROR',
+and the operation descriptor shall be freed later by means of *owatchCancelOp*
+or *owatchWaitOp*.
+
+If the 'op' operation descriptor argument is equal to 'OWOP_ALL' and the 'timeout'
+argument is equal to 'OWOP_NOWAIT', the routine returns immediately. Occupied
+operation descriptors (if any) are not freed in this case. If at the moment of
+the call there are no active pending operations, the routine returns 'OK', and
+the operation status depends on the state of completed but not freed
+operations. If among them there is at least one operation that had completed
+with failure, the operation status is 'ERROR', otherwise it is 'OK'. Otherwise,
+if there are active pending operations, the routine immediately returns 'ERROR'.
+The operation status is *1* if there are no operations completed with failure
+but not freed, and the status is 'ERROR' if there is at least one such
+operation.
+
+If the operation argument is 'OWOP_ALL' and the timeout argument is positive,
+the routine blocks caller until either the given deadline occurs or all the
+active pending operations get completed. All the occupied descriptors of the
+operations that get completed by the moment of return from the routine, are
+freed. The returned code and operation status are similar to the the previous
+case.
+
+If the 'op' operation argument is 'OWOP_ALL', and the 'timeout' argument is
+equal to 'OWOP_FOREVER', the routine blocks calling program until all the active
+pending operations get completed. When the routine returns, all the occupied
+descriptors get freed. If at the moment of call there are no active pending
+operations, the routine immediately returns 'OK', and sets the operation status
+either to 'ERROR', if at least one of the completed but not yet freed operations
+had completed with failure, or to 'OK' if all the operations had completed with
+success. If there are any active pending operations, the routine waits until
+they complete or get aborted. If there are active or occupied descriptors of
+operations that had completed with failure, the routine returns 'ERROR' and sets
+the operation status to 'ERROR'. Otherwise, i.e. if all the operations had
+completed with success, the routine returns 'OK' and sets the operation status
+to 'OK'.
+
+
+>>> owatchCancelOp(3)
+   oret_t  owatchCancelOp (owop_t 'op')
+
+This routine aborts execution of the 'op' operation and frees its descriptor.
+If the argument is equal to 'OWOP_ALL', the routine aborts all active operations
+and frees their descriptors. The operation descriptors that are already
+completed but not yet freed, will be freed as well.
+(*RETVAL*)
+The routine returns 'OK', if the operation descriptor was valid and occupied
+before the call. Otherwise, the routine returns 'ERROR'.
+
+
+>>> owatchDetachOp(3)
+   oret_t  owatchDetachOp (owop_t 'op')
+
+This routine marks the 'op' operation as *detached*. There is no need to wait
+for such an operation. Its descririptor will be freed automatically when the
+operation completes. Trying to wait for the detached operation is allowed to
+fail.
+(*RETVAL*)
+The routine returns 'OK', if the operation descriptor was valid and occupied
+before the call. Otherwise, the routine returns 'ERROR'.
+
+
+>>> owatchAddOpHandler(3)
+   oret_t  owatchAddOpHandler (const char *'filter', OwatchOpHandler_t 'phand', long 'param')
+
+This routine registers the operation completion handler and returns 'OK',
+if successful. If the maximum available number of handlers is exceeded, or
+handler with the same address is already registered, the routine returns
+'ERROR'.
+(*NOTE*)
+The 'filter' argument is not used in this version of the library.
+In future library versions the 'filter' argument will be used to constrain
+the set of events passed to the handler.
+(*DESC*)
+The 'phand' handler function must have the following prototype:
+
+*int opHandler (long 'param', owop_t 'op', int 'err_code')*
+
+After registration the handler will be called when asynchronous operations
+complete. The user-defined handler parameter and the completed operation
+descriptor will be passed to the handler together with the 'err_code'
+operation status which is 'OK' (*0*) if the operation completed with success
+or a failure code. The operation status passed to the handler can not be *1*
+(this value would mean that the operation has not yet completed). The handler
+return value is irrelevant.
+
+
+>>> owatchRemoveOpHandler(3)
+   oret_t  owatchRemoveOpHandler (OwatchOpHandler_t 'phand')
+
+This routine deactivates and removes the 'phand' operation completion handler.
+(*RETVAL*)
+Returns 'OK' if the handler was successfully removed, or 'ERROR' if the
+handler was not found.
+
+
+>>> owatchConnect(3)
+   owop_t  owatchConnect (const char *'hub_url')
+
+This routine initiates asynchronous connection to the ohub server. The 'hub_url'
+argument defines the server network address and has the following syntax:
+
+*$$[olang://]host[:port]$$*
+
+The *olang://* prefix is optional. The *host* string is the server host name
+or the IP address in dot-decimal notation. Optional *port* defines the number
+of the server control (UDP) port number. If *port* is left out it is by
+default equal to *3217*. The server command and data (TCP) port number is one
+more than the control port. If the 'hub_url' syntax is incorrect or the
+connection has been already initiated, the routine immediately returns
+'OWOP_ERROR'. Otherwise the routine behavior depends on the *async_timeout*
+library parameter. If *async_timeout* is 'OWATCH_NOWAIT', the routine does not
+block and immediately returns the operation descriptor of the pending
+connection operation. Otherwise, the connection operation status can be
+inquired via the *owatchWaitOp* routine.
+
+
+>>> owatchDisconnect(3)
+   oret_t  owatchDisconnect (void)
+
+Disconnects from the *ohub* server.
+All operations waiting for the hub will be canceled. Note, that if a disconnect
+is not explicitly commanded by this routine but happens due to a hub restart
+or a network failure, the operations are not canceled. In such cases the
+library records waiting operations, repeats attempts to connect to the hub
+and after successful connection the library re-registers data monitors and
+completes the operations. The user, however, can cancel these operations
+explicitly via *owatchCancelOp()*.
+
+(*RETVAL*)
+Returns 'OK', if the connection was established.
+If the connection was not estableshed or not initialized, returns 'ERROR'. 
+
+
+>>> owatchGetSubjectList(3)
+   oret_t  owatchGetSubjectList (char *'list_buffer', int 'buf_len')
+
+This routine fills user buffer with the list of names of the enabled domain
+subjects, separated by spaces.
+(*RETVAL*)
+The routine returns 'OK' if the library is initialized, connected to the server,
+the server has at least once sent the list of subjects to the library,
+and the user buffer has enough space to keep the full list.
+If any condition is not met, the routine returns 'ERROR'.
+
+
+>>> owatchGetAlive(3)
+   bool_t  owatchGetAlive (const char *'subject_name')
+
+This function returns status of the subject with the 'subject_name' name.
+'TRUE' means the subject is online, 'FALSE' -- offline.
+
+The function accepts three special subject names:
+  "*$$*$$*" (asterisk), "*$$+$$*" (plus sign) and "*$$?$$*" (question mark).
+
+For the virtual "*$$?$$*" subject the routine returns 'TRUE' if the library
+was initialized.
+The virtual "*$$*$$*" subject reflects connection of the library with
+the *ohub* server.
+For the virtual "*$$+$$*" subject the function returns 'TRUE' when all subjects
+registered by the domain with the status of "permanent" are online
+(the domain is complete), and 'FALSE' when at least one such subject is offline
+(incomplete domain).
+
+
+>>> owatchAddAliveHandler(3)
+   oret_t  owatchAddAliveHandler (OwatchAliveHandler_t 'phand', long 'param')
+
+This routine registers the subject state change handler. Returns 'OK' on
+success. If a status change handler with the same address is already
+registered or the library has reached maximum number of registered handlers,
+the routine returns 'ERROR'. The state change events include transitions of
+subjects from offline to online and back, server connection transitions
+between established and shut down (these changes are tracked via the virtual
+*$$*$$* subject), and the domain state switching between complete and incomplete
+(tracked by the *$$+$$* subject, see the comment above).
+
+The handler routine should have the following prototype:
+
+*int aliveHandler (long 'param', const char $$*$$'subject_name', const char $$*$$'new_state')*
+
+The handler will be called for the state changes occurring after the
+registration. When a subject goes online or offline, the handler is called
+with a user parameter, name of the subject changing the state and the new
+status: TRUE or FALSE. The value returned by handler is ignores. If due to an
+offline subject switching online all the permanent subjects become online, the
+library generates the *online* event of the virtual "complete domain" subject
+with the name of "*$$+$$*". If the domain is complete, and one of permanent subjects
+goes offline, then before passing the subject switch event to handlers, the
+library generates the *offline* event for the "*$$+$$*" subject.
+
+
+>>> owatchRemoveAliveHandler(3)
+   oret_t  owatchRemoveAliveHandler (OwatchAliveHandler_t 'phand')
+
+This routine deactivates and removes the given state change handler.
+
+(*RETVAL*)
+Returns 'OK' if the handler was successfully removed,
+or 'ERROR' if the handler was not found.
+
+
+>>> owatchAddMonitor(3)
+   owop_t  owatchAddMonitor (const char *'desc', ooid_t *'ooid_buf', bool_t 'dont_monitor')
+
+This routine starts monitoring of a data sample.
+
+The 'desc' parameter describes the data sample using the following syntax:
+
+*$$[subject['/'module]'@']prototype$$*
+
+The *prototype* string describes the data sample in the C language syntax.
+
+By default the data sample is searched among all subjects registered with the
+monitoring server. If there are several subjects or object modules containing
+data with the same name, the system picks the first matching name, but the
+search order is not determined. Using the optional *subject* and *module*
+strings the data sample location can be fixed.
+
+Whether the routine is blocking or not, is defined by the *async_timeout*
+library parameter. The routine initiates the asynchronous operation
+registering the data sample monitoring and returns the operation descriptor or
+'OWOP_OK'/'OWOP_ERROR'. When this operation completes with success, the library
+will store the unique data sample identifier at the address pointed to by the
+ooid_buf argument. On failure (i.e. data sample is not found, the operation is
+aborted or a system error occurs) the library will store 'OOID_NULL' at the
+'ooid_buf' buffer. The *ooid_t* data type is defined in the *<optikus/watch.h>*
+header.
+
+The 'dont_monitor' argument tells whether value change handlers will be called
+when this data sample changes:
+- If 'dont_monitor' is 'FALSE', the handlers will be called at each change
+  (however, this can be also controlled by the *owatchEnableMonitor()* routine).
+- If 'dont_monitor' is 'TRUE', the data value can be obtained via the
+  *owatchRead()* or *owatchGetValue()* routines.
+
+(*RETVAL*)
+On failure, or if any of the arguments is a *NULL* pointer, the routine
+immediately returns 'OWOP_ERROR'.
+Otherwise, the operation descriptor is returned.
+
+(*NOTE*)
+If the routine is called several times for the same data sample, it will
+return the same data identifier each time increasing internal data reference
+counter. Monitoring of the data will be enabled if at least for one of the
+*owatchAddMonitor()* calls the 'dont_monitor' argument is 'FALSE'.
+
+
+>>> owatchRemoveMonitor(3)
+   oret_t  owatchRemoveMonitor (ooid_t 'ooid')
+
+This routine deactivates monitoring of the data sample with given identifier.
+If monitoring was registered several times, the routine decrements internal
+data reference counter and actually deactivates monitoring only when the
+counter reaches zero.
+(*RETVAL*)
+On success returns 'OK'. If monitoring with given identifier has not been
+registered, returns 'ERROR'. If at the time of call the data sample search
+operation has not yet completed, it is aborted and the routine returns 'OK'.
+
+
+>>> owatchRemoveAllMonitors(3)
+   oret_t  owatchRemoveAllMonitors (void)
+
+This routine deactivates monitoring of all requested data.
+
+(*RETVAL*)
+Returns 'OK' it finds at least one monitoring descriptor.
+Otherwise, returns 'ERROR'.
+
+
+>>> owatchAddDataHandler(3)
+   oret_t  owatchAddDataHandler (const char *'filter', OwatchDataHandler_t 'phand', long 'param')
+
+Registers the value change handler and returns 'OK' on success. If a value
+change handler with the same address is already registered or the library has
+reached maximum number of registered handlers, the routine returns ERROR.
+
+The 'filter' argument is not used in this version of the library. In future
+library versions this parameter will be used to constrain the set of events
+passed to the handler.
+
+The 'phand' handler function shall have the following prototype:
+
+*int dataHandler (long 'param', ooid_t 'ooid', const oval_t $$*$$'pvalue')*
+
+The handler return value is ignored. When a monitored data value changes, the
+library calls back the handler and passes it the user defined parameter, the
+oid data sample identifier, and the new value. The handler should not change
+the value structure fields. The *oval_t* structure has the following fields:
+'type', 'len', 'undef', 'v', 'time'.
+
+The 'type' field has *char* type and describes the data sample type (values in
+brackets give the data length in bytes):
+  *b* - signed char             (1),
+  *B* - unsigned char           (1),
+  *h* - signed short int        (2),
+  *H* - unsigned short int      (2),
+  *i* - int                     (4),
+  *I* - unsigned int            (4),
+  *l* - signed long int         (4),
+  *L* - unsigned long int       (4),
+  *q* - signed long long int    (8),
+  *Q* - unsigned long long int  (8),
+  *f* - float                   (4),
+  *d* - double                  (8),
+  *D* - long double             (16),
+  *p* - executable code address (4),
+  *E* - enumeration (similar to int, length is 4 bytes),
+  *s* - variable length string (terminated by zero byte which is included
+        in the length).
+The data length referenced above is relevant for 32-bit architectures.
+64-bit architectures are not yet supported by the library.
+Also, the library does not support *q*, *Q*, *D* data types and passing
+of raw byte arrays. Attempts to register or write unsupported data types
+will make the library routine fail.
+
+The 'len' field has *short* type and contains the data length in bytes
+(most useful for strings).
+
+The 'undef' field has *char* type and contains '0' if the value is relevant,
+or '1' if subject cannot return the value (for example, if an object module
+is reloaded and the new version does not contain the data sample). If subject
+"drops" a data sample, the library calls change handlers as if the data was
+changed, but marks the data as "undefined". If later the subject "acquires"
+the data sample back, change handlers are passed the new data value with the
+"undefined" mark reset.
+
+The 'v' field contains the data value. It is a union of the following
+subfields (symbols in brackets give the corresponding data "type"):
+  v_char   (*b*),
+  v_uchar  (*B*),
+  v_short  (*h*),
+  v_ushort (*H*),
+  v_int    (*i*),
+  v_uint   (*I*),
+  v_long   (*l*),
+  v_ulong  (*L*),
+  v_float  (*f*),
+  v_double (*d*),
+  v_ulong  (*p*),
+  v_enum   (*E*),
+  v_str    (*s*).
+The *p*-type value is an executable code address. It is an absolute memory
+address valid only within the containing subject. Library passes it as a
+32-bit unsigned integer number.
+The 'v_enum' field is of *int* type.
+The 'v_str' field has the *char $$*$$* type. When data handler is called,
+this field points to an internal library buffer terminated by zero byte.
+The handler should not change contents of this buffer or pass its address
+to other user functions since the address can change from call to call.
+If needed, the handler can create a copy of the buffer contents.
+If data is undefined, the value field contains zero converted to the
+corresponding type (for *v_str* this is *NULL* pointer).
+
+The 'time' field has *long* type and contains the time of the last value
+change or when the data last changed the "undefined" status in the containing
+subject. The time is expressed in *v.t.u.*s (virtual time units).
+In current version of the library this field is not used
+and always contains zero.
+
+
+>>> owatchRemoveDataHandler(3)
+   oret_t  owatchRemoveDataHandler (OwatchDataHandler_t 'phand')
+
+This routine deactivates and removes a given value change handler.
+(*RETVAL*)
+The routine returns 'OK' if the handler was successfully removed,
+or 'ERROR' if the handler was not registered before.
+
+
+>>> owatchEnableMonitoring(3)
+   oret_t  owatchEnableMonitoring (bool_t 'enable')
+
+This routine globally enables or disables activation of value change handlers.
+It does not affect monitoring of the data registered with the 'dont_monitor'
+argument of *TRUE*.
+(*RETVAL*)
+This routine always returns OK.
+(*NOTE*)
+Disabling change handlers does not stop receiving the updated values from
+server, and when the activation is enabled again, the accumulated changes
+will be "splashed" on the user application. To prevent the splash effect,
+before enabling change handlers, all the "value changed" flags have to be
+reset by calling *owatchFlushAllMonitors()*.
+
+
+>>> owatchFlushMonitor(3)
+   oret_t  owatchFlushMonitor (ooid_t 'ooid')
+
+This routine resets the "value changed" flag of data sample with given
+identifier, thus preventing activation of change handler for this change.
+(*RETVAL*)
+The routine returns 'OK' if monitoring of given data sample was registered,
+or 'ERROR' otherwise.
+
+
+>>> owatchFlushAllMonitors(3)
+   oret_t  owatchFlushAllMonitors (void)
+
+This routine resets the "value changed" flag for all monitored data and
+cancels pending activations of change handlers.
+(*RETVAL*)
+Always returns 'OK'.
+
+
+>>> owatchRenewMonitor(3)
+   oret_t  owatchRenewMonitor (ooid_t 'ooid')
+
+This routine forces calling change handlers for the data sample with given
+identifier even if the value has not changed.
+
+(*RETVAL*)
+Returns 'OK' if given identifier is not registered for monitoring,
+and 'ERROR' otherwise.
+
+
+>>> owatchRenewAllMonitors(3)
+   oret_t  owatchRenewAllMonitors (void)
+
+This routine forces calling change handlers for all monitored data.
+
+This routine can be helpful if connection with server was temporarily
+lost and some changes went by, or the user application has to inquire
+current state of all data samples.
+
+(*RETVAL*)
+Always returns OK.
+
+
+>>> owatchGetDesc(3)
+   oret_t  owatchGetDesc (ooid_t 'ooid', char *'desc_buf', int 'desc_buf_len')
+
+This routine stores the description string of the data sample with given
+identifier in the user buffer pointed to by the 'desc_buf' argument.
+(*RETVAL*)
+The routine returns 'OK' if the library is initialized, data sample with
+given identifier exists and is registered, the buffer pointer is not null,
+and the buffer length is enough to hold the description.
+Otherwise, the routine returns 'ERROR'.
+
+
+>>> owatchGetValue(3)
+   oret_t  owatchGetValue (ooid_t 'ooid', oval_t *'pvalue', char *'data_buf', int 'buf_len')
+
+This non-blocking routine stores the last received value of the data sample
+with given identifier in the user buffer of the *oval_t* type.
+
+If the identifier is not registered, the routine returns 'ERROR'.
+If identifier is registered, and values were received from containing subject
+at least once, the routine returns 'OK'.
+
+On success the routine fills the following fields of the pvalue structure:
+  'type', 'len', 'undef', 'v', 'time'.
+Meaning of the fields is described on the *owatchAddDataHandler()* page.
+
+For all data types but strings, the 'data_buf' and 'buf_len' arguments are
+ignored, and the value is returned right in the 'pvalue' fields.
+
+For passing strings a user buffer is required, the 'data_buf' argument should
+give its address and 'buf_len' should give its length.
+If the buffer address is not null and the size is enough to hold the value,
+the string is copied in the buffer, its address is stored in the 'v.v_str' field
+of the 'pvalue' structure, and its length including trailing zero is stored
+in the 'len' field. Otherwise, all informational fields of the *oval_t $$*$$'pvalue'*
+structure will be correctly filled, the string length will be stored in the
+'len' field, but 'v.v_str' will be filled with null pointer and the routine
+will return 'OK'. This behavior can be used to find the enough string buffer size.
+Also, this routine can be helpful to find the actual monitored data type.
+(*NOTE*)
+In the current version of the library the 'time' field is not used and is
+always equal to zero.
+
+
+>>> owatchConvertValue(3)
+   oret_t  owatchConvertValue (const oval_t *'src_val', oval_t *'dst_val', char *'data_buf', int 'data_buf_len')
+
+This routine converts from one data type to another.
+
+Source data should be stored in the 'src_val' structure before the call,
+and the 'type' field of this structure should describe the source data type.
+String data should be stored in a user buffer with its pointer stored in the
+'v.v_str' field of 'src_val' and its length stored in the 'len' field.
+For other data types 'len' is ignored: it can be easily derived from the data
+type.
+The user application should store the target data type in the 'type' field
+of the 'dst_val' structure before the call.
+
+The routine will put the converted data in 'dst_val'.
+The routine returns 'ERROR' if source or destination types are invalid.
+Otherwise, the routine returns 'OK'.
+
+Upon successful return the 'dst_val.time' field is always equal to 'src_val.time'.
+If the target data type is not string, the 'dst_val.len' field is filled
+according to the target type.
+
+For converting data to the string type the application should allocate in advance
+a buffer and pass its address in the 'data_buf' argument and length in the
+'buf_len' argument (in other cases these arguments are ignored).
+If the buffer address is not null and the length is enough to hold the result
+string, the string will be copied to the buffer, the buffer address will be
+stored in 'dst_val.v.v_str' and the result string length will be stored in
+'dst_val.len'.
+Otherwise, the result string will not be copied, its length including the
+trailing zero will be stored in 'dst_val.len', null pointer will be stored
+in 'dst_val.v.v_str', all other 'dst_val' fields will be filled respectively,
+and the routine will return 'OK'.
+
+It is allowed for 'data_buf' and 'src_val.v.v_str' to point to the same buffer.
+If 'src_val.v.v_str' is a null pointer, upon return the 'dst_val.len' will
+contain zero, 'dst_val.v.v_str' will contain null pointer and the routine
+will return 'OK'.
+
+
+>>> owatchRead(3)
+   owop_t  owatchRead (ooid_t 'ooid', oval_t *'value', char *'data_buf', int 'data_buf_len')
+
+This routine initiates fetching a data sample value into the user buffer. The
+routine is similar to *owatchGetValue()* but it additionally resets the
+"handlers called" flag when the reading is initiated. Depending on the
+*async_timeout* library parameter the routine can or can not block the caller.
+
+
+>>> owatchReadByName(3)
+   owop_t  owatchReadByName (const char *'desc', oval_t *'pval', char *'data_buf', int 'dbuf_len')
+
+This routine performs reading of the data sample described by 'desc' without
+monitoring registration.  The 'desc' argument describes the data sample
+following the next syntax:
+
+*$$[subject'@']prototype$$*
+
+The 'prototype' string describes the data sample in the C language syntax.
+By default the data sample is searched among all subjects registered with the
+monitoring server. If there are several subjects containing data with the same
+name, the system picks the first matching name, but the search order is not
+determined. Using the optional 'subject' string the data sample location can
+be fixed.  The routine behavior can be modeled by the following pseudo-code:
+
+-------------------------------------------------------------------------------
+  ooid_t virtual_temp_ooid;
+  owop_t op1, op2;
+  op1 = owatchAddMonitor (desc, &virtual_temp_ooid);  /* indeed no monitoring is performed */
+  owatchWaitOp (op1, async_timeout, NULL);
+  op2 = owatchRead (virtual_temp_ooid, pval, data_buf, dbuf_len);
+  owatchWaitOp (op2, async_timeout, NULL);
+  owatchRemoveMonitor (virtual_temp_ooid);
+-------------------------------------------------------------------------------
+
+
+>>> owatchGetAutoCommit(3)
+   bool_t  owatchGetAutoCommit (void)
+
+Returns current value of the *auto_commit* library parameter. This parameter
+changes the behavior of data modification routines. If *auto_commit* is 'TRUE',
+invocations of *owatchWriteXXX()* perform immediate data modification. If
+*auto_commit* is 'FALSE', the data modification routines search for target data
+samples and buffer modification requests on subjects. The actual modification
+will be performed in all affected subjects after the next *owatchCommit()* call.
+
+
+>>> owatchSetAutoCommit(3)
+   oret_t owatchSetAutoCommit (bool_t 'enable_auto_commit')
+
+This routine changes the *auto_commit* library parameter. If the new value is
+'TRUE', and before the call there were unfinished modifications, their commit
+will be initiated automatically.
+(*RETVAL*)
+Since the current library version supports only the *auto commit* mode, this
+routine accepts only the 'TRUE' argument value and returns 'ERROR' otherwise.
+
+
+>>> owatchCommit(3)
+   owop_t  owatchCommit (void)
+
+This routine initiates the process of committing all the data modification
+requests buffered in subjects. The actual commit operation will not start
+until all previous commits get completed. Server and subjects together pick
+the actual modifications commit time as a nearest possible time after
+completion of the previous commits that satisfies system level constraints of
+the server and the involved subjects. The user application can proceed with
+the next invocations of *owatchWriteXXX()* immediately after this routine
+returns, i.e. before the current commit completes, but new modifications will
+be commited only by the next commit operation.
+(*RETVAL*)
+Since the current library version supports only the *auto commit* mode,
+this routine always returns 'OWOP_ERROR'.
+
+
+>>> owatchCommitAt(3)
+   owop_t  owatchCommitAt (long 'vtu_time')
+
+This routine schedules committing of buffered modification requests at the
+time given by the 'vtu_time' argument and expressed in *virtual time units*. The
+involved subjects obey the requested commit time constrained by the precision
+of their system clocks. The asynchronous commit operation will fail if at
+least one subject cannot receive all the modification requests before the
+given time. Calling *owatchCommitAt()* with argument which is less than one of
+previous values of the same argument or is less than the current virtual
+domain time, makes the routine immediately return with 'OWOP_ERROR'.
+(*RETVAL*)
+Since the current library version supports only the auto_commit mode,
+this routine always returns 'OWOP_ERROR'.
+
+
+>>> owatchGetTime(3)
+   long  owatchGetTime (void)
+
+This function returns the domain virtual time, expressed in *v.t.u.* s (virtual
+time units). If the library cannot determine this time, for example, if
+connection to the server is not established, *0* is returned.
+(*RETVAL*)
+In the current library version only *0* is returned.
+
+
+>>> owatchWrite(3)
+   owop_t  owatchWrite (ooid_t 'ooid', const oval_t *'value')
+
+This routine performs a single modification of a data sample registered for
+monitoring. The type of the *oval_t* 'value' shall match the target data type,
+otherwise the routine immediately returns 'ERROR'.
+(*FIXME*: perhaps, automatic conversion could be allowed).
+If at the moment the subject has "lost" the data sample, the operation
+immediately returns 'ERROR'.
+
+(*NOTE*)
+The mere fact of calling the routine does not directly result in calling value
+change handlers. The handlers are activated as an indirect consequence of this
+routine when the data modification is revealed by the monitored subject.
+(*FIXME*: would it be correct to implement a different king of behavior ?).
+
+
+>>> owatchWriteByName(3)
+   owop_t  owatchWriteByName (const char *'desc', const oval_t *'pvalue')
+
+This routine performs a single modification of the data sample described by
+'desc' without monitoring registration. The 'desc' argument describes the
+data sample following the next syntax:
+
+*$$[subject'@']prototype$$*
+
+The *prototype* string describes the data sample in the C language syntax.
+By default the data sample is searched among all subjects registered with the
+monitoring server. If there are several subjects containing data with the same
+name, the system picks the first matching name, but the search order is not
+determined. Using the optional *subject* string the data sample location can
+be fixed.  The routine behavior can be modeled by the following pseudo-code:
+
+------------------------------------------------------------------------------
+    ooid_t virtual_temp_ooid;
+    oval_t str_val, tmp_val;
+    owop_t op1, op2;
+    op1 = owatchAddMonitor (desc, &virtual_temp_ooid);  /* indeed no monitoring is performed */
+    owatchWaitOp (op1, async_timeout, NULL);
+    op2 = owatchWrite (virtual_temp_ooid, pvalue);
+    owatchWaitOp (op2, async_timeout, NULL);
+    owatchRemoveMonitor (virtual_temp_ooid);
+------------------------------------------------------------------------------
+
+
+>>> owatchReadAsDouble(3)
+   double owatchReadAsDouble (const char *'desc', int 'timeout', int *'err_code')
+
+The routine performs single data sample reading from a monitored subject.
+On success the routine returns value of the sample converted to the double float
+type. If the data sample is a string, the system attempts to treat the string
+as containing a decimal number. In case of failure (data sample not found by
+description or cannot be converted to number or subject does not respond
+before deadline or a system error occurs), the routine returns *0* and sets
+'err_code' appropriately.
+
+
+>>> owatchReadAsFloat(3)
+   float owatchReadAsFloat (const char *'desc', int 'timeout', int *'err_code')
+
+The routine performs single data sample reading from a monitored subject. On
+success the routine returns value of the sample converted to the single float
+type. If the data sample is a string, the system attempts to treat the string
+as containing a decimal number. In case of failure (data sample not found by
+description or cannot be converted to number or subject does not respond
+before deadline or a system error occurs), the routine returns *0* and sets
+'err_code' appropriately.
+
+
+>>> owatchReadAsLong(3)
+  long owatchReadAsLong (const char *'desc', int 'timeout', int *'err_code')
+
+The routine performs single data sample reading from a monitored subject.
+On success the routine returns value of the sample converted to the long
+integer type. If the data sample has single or data float type, the conversion
+truncates the number. If the data sample is a string, the system attempts to
+treat the string as containing a decimal number. In case of failure (data sample
+not found by description or the data sample is string and cannot be converted
+to number or subject does not respond before the 'timeout' deadline or a system
+error occurs), the routine returns *0* and sets 'err_code' appropriately.
+
+
+>>> owatchReadAsString(3)
+   char * owatchReadAsString (const char *'desc', int 'timeout', int *'err_code')
+
+The routine performs single data sample reading from a monitored subject. On
+success the routine returns value of the sample converted as a string. Numeric
+data samples are converted into decimal fixed-point format. String data
+samples are passed as is. The returned string is dynamically allocated by the
+library and should be later freed by application by means of the standard C
+library *free()* routine. In case of failure (data sample not found by
+description or subject does not respond before deadline or a system error
+occurs), the routine returns *NULL* pointer and sets 'err_code' appropriately.
+
+
+>>> owatchWriteAsDouble(3)
+   oret_t owatchWriteAsDouble (const char *'desc', double 'value', int 'timeout', int *'err_code')
+
+This routine performs a single modification of the data sample described by
+'desc' without registration of monitoring. The new value is taken from the
+'value' argument and converted to the target sample type. Conversion to an
+integer type truncates the number. Conversion to string represents the value
+as a decimal floating point number. Current version of the library does not
+check for possible minimum-maximum overflows, it is responsibility of the user
+application. In such cases the converted data value is undefined, and the
+error code is not set. Future version of the library will support more strict
+type checks. The routine can block the calling program according to the
+'timeout' argument.
+(*RETVAL*)
+On success the routine returns 'OK'. On failure the routine returns 'ERROR'
+and sets the 'err_code' appropriately.
+
+
+>>> owatchWriteAsFloat(3)
+   oret_t owatchWriteAsFloat (const char *'desc', float 'value', int 'timeout', int *'err_code')
+
+This routine is similar to *owatchWriteAsDouble()*, but the argument type is
+single float.
+
+
+>>> owatchWriteAsLong(3)
+  oret_t owatchWriteAsLong (const char *'desc', long 'value', int 'timeout', int *'err_code')
+
+This routine performs a single modification of the data sample described by
+'desc' without registration of monitoring registration.
+The new value is taken from the 'value' argument and converted to the target
+sample type. Conversion to string represents the value as a decimal integer.
+Current version of the library does not check for possible minimum-maximum
+overflows, it is responsibility of the user application. In such cases the
+converted data value is undefined, and the error code is not set.
+Future version of the library will support more strict type checks.
+The routine can block the calling program according to the 'timeout' argument.
+(*RETVAL*)
+On success the routine returns 'OK'. On failure the routine returns 'ERROR'
+and sets the 'err_code' error code appropriately.
+
+
+>>> owatchWriteAsString(3)
+   oret_t owatchWriteAsString (const char *'desc', const char *'value', int 'timeout', int *'err_code')
+
+This routine performs a single modification of the data sample described by
+'desc' without monitoring registration. The new 'value' is taken from the second
+argument and converted to the target sample type. If the target sample has a
+numeric type, the system attempts to treat the input string as containing a
+decimal number. If the target sample is an integer number, the string
+converted to a number is truncated. Current version of the library does not
+check for possible minimum-maximum overflows, it is responsibility of the user
+application. In such cases the converted data value is undefined, and the
+error code is not set.
+(*NOTE*)
+In future the library will support more strict type checks.
+(*RETVAL*)
+On success the routine returns 'OK'.
+On failure the routine returns 'ERROR' and sets the error code appropriately.
+
+
+>>> owatchSendMessage(3)
+   oret_t owatchSendMessage (void *'data', int 'nbytes')
+
+This routine sends the data packet from the buffer pointed by 'data' of the
+'nbytes' length.
+
+
+>>> owatchSendCtlMsg(3)
+   oret_t owatchSendCtlMsg (int 'dest', int 'klass', int 'type', const char *'format', ...)
+
+This routine dynamically generates data packet and sends it.  The dest
+argument identifies receiver of the packet.  The 'klass' and 'type' arguments set
+major and minor numbers of the packet.  If the 'format' string is empty, the
+packet will be without parameters. Non-empty 'format' string defines the number
+and types of parameters in the packet data field. The parameters are passed
+after the 'format' string. The 'format' string is an ordered sequence of data
+specifiers similar to the format specifiers passed to *printf()*. Each specifier
+starts from the *$$%$$* sign followed by 1 or 2 Latin letters. The next table
+describes available format specifiers:
+
+..............................................................................
+/----------------------------------------------------------------------\
+| Specifier |  Parameter description                                   |
+|-----------+----------------------------------------------------------|
+| %d        | Adds to the packet the 4-byte signed integer number      |
+|           |   (from -2147483648 to +2147483647).                     |
+|           |   The routine parameter is signed int.                   |
+| %u        | Adds to the packet the 4-byte unsigned integer number    |
+|           |   (from 0 to +4294967296).                               |
+|           |   The routine parameter is unsigned int.                 |
+| %hd       | Adds to the packet the 2-byte signed integer number      |
+|           |   (from -32768 to +32767).                               |
+|           |   The routine parameter is signed short int.             |
+| %hu       | Adds to the packet the 2-byte unsigned integer number    |
+|           |   (from 0 to +65535).                                    |
+|           |   The routine parameter is unsigned short int.           |
+| %x        | Same as %u.                                              |
+| %hx       | Same as %hu.                                             |
+| %f        | Adds to the packet the 4-byte IEEE single precision      |
+|           |   floating point number.                                 |
+|           |   The routine parameter is passed as float.              |
+| %lf       | Adds to the packet the 8-byte IEEE double precision      |
+|           |   floating point number.                                 |
+|           |   The routine parameter is passed as double.             |
+\----------------------------------------------------------------------/
+..............................................................................
+
+[verse]
+No other format specifiers are allowed.
+

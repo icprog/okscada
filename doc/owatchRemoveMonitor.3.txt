@@ -1,0 +1,50 @@
+owatchRemoveMonitor(3)
+======================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchRemoveMonitor - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*oret_t  owatchRemoveMonitor (ooid_t 'ooid')*;
+
+
+DESCRIPTION
+-----------
+This routine deactivates monitoring of the data sample with given identifier.
+If monitoring was registered several times, the routine decrements internal
+data reference counter and actually deactivates monitoring only when the
+counter reaches zero.
+
+
+RETURN VALUE
+------------
+On success returns 'OK'. If monitoring with given identifier has not been
+registered, returns 'ERROR'. If at the time of call the data sample search
+operation has not yet completed, it is aborted and the routine returns 'OK'.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

@@ -1,0 +1,74 @@
+# -*-perl-*-    vi: set ts=4 sw=4 :
+#
+#  perl bindings for Optikus.
+#
+#  Copyright (C) 2006-2007, vitki.net
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#  $Date$
+#  $Revision$
+#  $Source$
+#
+#  See lib/ExtUtils/MakeMaker.pm for details of how to influence
+#  the contents of the Makefile that is written.
+#
+
+use ExtUtils::MakeMaker;
+use Config;
+
+my $prefix = "@prefix@";
+my $topsrc = "@top_srcdir@";
+my $topbuild = "@top_builddir@";
+my $mandir = "@mandir@";
+my $man1dir = "$mandir/man1";
+my $man3dir = "$mandir/man3";
+
+#
+# If the last argument when calling Makefile.PL is RPATH=/xxx and xxx is the
+# path to libXXX.so then the Makefile will be written such that xxx.so knows
+# where to find libXXX.so during bootstrap.
+#
+my $rpath="";
+if ($ARGV[-1] =~ /RPATH=(\S+)/) {
+	pop @ARGV;
+	my $rp = $1;
+	for ($^O) {
+		/linux/		&& do { $rpath = "-Wl,--rpath -Wl,$rp" };
+		/hpux/		&& do { $rpath = "+b$rp" };
+		/solaris/	&& do { $rpath = "-R$rp" };
+    	/aix/		&& do { $rpath = "-Wl,-blibpath:$rp" };
+	}
+}
+
+WriteMakefile(
+	NAME			=> "Optikus::Optikus",
+	AUTHOR			=> 'vitki.net',
+	VERSION_FROM	=> "lib/Optikus/Optikus.pm", # finds $VERSION
+	ABSTRACT_FROM	=> "lib/Optikus/Optikus.pm", # retrieve abstract from module
+	XS				=> {
+						"Optikus.xs" => "Optikus.c",
+						"Log.xs" => "Log.c",
+						"Watch.xs" => "Watch.c"
+					},
+	DEFINE			=> "-Wall -DPERL_IS_5_8_PLUS=1 @PERL_DEFINES@",
+	INC				=> "-I. -I${topsrc}/include",
+	LIBS			=> [ "-L${topbuild}watch -lowatch -L${topbuild}util -loutil -lpthread -ldl" ],
+	dynamic_lib		=> { 'OTHERLDFLAGS' => "$rpath" },
+	OBJECT			=> '$(O_FILES)',
+	INSTALLSITEMAN1DIR	=> $man1dir,
+	INSTALLSITEMAN3DIR	=> $man3dir,
+);
+

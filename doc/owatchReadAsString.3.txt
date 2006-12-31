@@ -1,0 +1,47 @@
+owatchReadAsString(3)
+=====================
+Victor Semizarov <vitkinet@gmail.com>
+
+NAME
+----
+owatchReadAsString - ...
+
+
+SYNOPSIS
+--------
+*#include <optikus/watch.h>*
+
+*char $$*$$ owatchReadAsString (const char $$*$$'desc', int 'timeout', int $$*$$'err_code')*;
+
+
+DESCRIPTION
+-----------
+The routine performs single data sample reading from a monitored subject. On
+success the routine returns value of the sample converted as a string. Numeric
+data samples are converted into decimal fixed-point format. String data
+samples are passed as is. The returned string is dynamically allocated by the
+library and should be later freed by application by means of the standard C
+library *free()* routine. In case of failure (data sample not found by
+description or subject does not respond before deadline or a system error
+occurs), the routine returns *NULL* pointer and sets 'err_code' appropriately.
+
+
+BUGS
+----
+See the Optikus distribution BUGS file.
+
+
+RESOURCES
+---------
+SourceForge: 'http://sourceforge.net/projects/asciidoc'
+
+Main web site: 'http://optikus.sourceforge.net'
+
+
+COPYING
+-------
+Copyright \(C) 2006-2007 vitki.net.
+The Optikus library is free software. You can redistribute and/or
+modify it under the the terms of the GNU General Public License (GPL).
+
+

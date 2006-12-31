@@ -1,0 +1,33 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHDISCONNECT" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchDisconnect \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchDisconnect (void)\fR;
+.sp
+.SH "DESCRIPTION"
+Disconnects from the \fBohub\fR server. All operations waiting for the hub will be canceled. Note, that if a disconnect is not explicitly commanded by this routine but happens due to a hub restart or a network failure, the operations are not canceled. In such cases the library records waiting operations, repeats attempts to connect to the hub and after successful connection the library re\-registers data monitors and completes the operations. The user, however, can cancel these operations explicitly via \fBowatchCancelOp()\fR.
+.sp
+.SH "RETURN VALUE"
+Returns \fIOK\fR, if the connection was established. If the connection was not estableshed or not initialized, returns \fIERROR\fR.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp

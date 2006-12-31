@@ -1,0 +1,48 @@
+.\" ** You probably do not want to edit this file directly **
+.\" It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+.\" Instead of manually editing it, you probably should edit the DocBook XML
+.\" source for it and then use the DocBook XSL Stylesheets to regenerate it.
+.TH "OWATCHADDDATAHANDLER" "3" "12/17/2006" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+owatchAddDataHandler \- ...
+.SH "SYNOPSIS"
+\fB#include <optikus/watch.h>\fR
+.sp
+\fBoret_t owatchAddDataHandler (const char *\fR\fB\fIfilter\fR\fR\fB, OwatchDataHandler_t \fR\fB\fIphand\fR\fR\fB, long \fR\fB\fIparam\fR\fR\fB)\fR;
+.sp
+.SH "DESCRIPTION"
+Registers the value change handler and returns \fIOK\fR on success. If a value change handler with the same address is already registered or the library has reached maximum number of registered handlers, the routine returns ERROR.
+.sp
+The \fIfilter\fR argument is not used in this version of the library. In future library versions this parameter will be used to constrain the set of events passed to the handler.
+.sp
+The \fIphand\fR handler function shall have the following prototype:
+.sp
+\fBint dataHandler (long \fR\fB\fIparam\fR\fR\fB, ooid_t \fR\fB\fIooid\fR\fR\fB, const oval_t *\fR\fB\fIpvalue\fR\fR\fB)\fR
+.sp
+The handler return value is ignored. When a monitored data value changes, the library calls back the handler and passes it the user defined parameter, the oid data sample identifier, and the new value. The handler should not change the value structure fields. The \fBoval_t\fR structure has the following fields: \fItype\fR, \fIlen\fR, \fIundef\fR, \fIv\fR, \fItime\fR.
+.sp
+The \fItype\fR field has \fBchar\fR type and describes the data sample type (values in brackets give the data length in bytes): \fBb\fR \- signed char (1), \fBB\fR \- unsigned char (1), \fBh\fR \- signed short int (2), \fBH\fR \- unsigned short int (2), \fBi\fR \- int (4), \fBI\fR \- unsigned int (4), \fBl\fR \- signed long int (4), \fBL\fR \- unsigned long int (4), \fBq\fR \- signed long long int (8), \fBQ\fR \- unsigned long long int (8), \fBf\fR \- float (4), \fBd\fR \- double (8), \fBD\fR \- long double (16), \fBp\fR \- executable code address (4), \fBE\fR \- enumeration (similar to int, length is 4 bytes), \fBs\fR \- variable length string (terminated by zero byte which is included in the length). The data length referenced above is relevant for 32\-bit architectures. 64\-bit architectures are not yet supported by the library. Also, the library does not support \fBq\fR, \fBQ\fR, \fBD\fR data types and passing of raw byte arrays. Attempts to register or write unsupported data types will make the library routine fail.
+.sp
+The \fIlen\fR field has \fBshort\fR type and contains the data length in bytes (most useful for strings).
+.sp
+The \fIundef\fR field has \fBchar\fR type and contains \fI0\fR if the value is relevant, or \fI1\fR if subject cannot return the value (for example, if an object module is reloaded and the new version does not contain the data sample). If subject "drops" a data sample, the library calls change handlers as if the data was changed, but marks the data as "undefined". If later the subject "acquires" the data sample back, change handlers are passed the new data value with the "undefined" mark reset.
+.sp
+The \fIv\fR field contains the data value. It is a union of the following subfields (symbols in brackets give the corresponding data "type"): v_char (\fBb\fR), v_uchar (\fBB\fR), v_short (\fBh\fR), v_ushort (\fBH\fR), v_int (\fBi\fR), v_uint (\fBI\fR), v_long (\fBl\fR), v_ulong (\fBL\fR), v_float (\fBf\fR), v_double (\fBd\fR), v_ulong (\fBp\fR), v_enum (\fBE\fR), v_str (\fBs\fR). The \fBp\fR\-type value is an executable code address. It is an absolute memory address valid only within the containing subject. Library passes it as a 32\-bit unsigned integer number. The \fIv_enum\fR field is of \fBint\fR type. The \fIv_str\fR field has the \fBchar *\fR type. When data handler is called, this field points to an internal library buffer terminated by zero byte. The handler should not change contents of this buffer or pass its address to other user functions since the address can change from call to call. If needed, the handler can create a copy of the buffer contents. If data is undefined, the value field contains zero converted to the corresponding type (for \fBv_str\fR this is \fBNULL\fR pointer).
+.sp
+The \fItime\fR field has \fBlong\fR type and contains the time of the last value change or when the data last changed the "undefined" status in the containing subject. The time is expressed in *v.t.u.*s (virtual time units). In current version of the library this field is not used and always contains zero.
+.sp
+.SH "BUGS"
+See the Optikus distribution BUGS file.
+.sp
+.SH "RESOURCES"
+SourceForge: \fIhttp://sourceforge.net/projects/asciidoc\fR
+.sp
+Main web site: \fIhttp://optikus.sourceforge.net\fR
+.sp
+.SH "COPYING"
+Copyright (C) 2006\-2007 vitki.net. The Optikus library is free software. You can redistribute and/or modify it under the the terms of the GNU General Public License (GPL).
+.sp
