@@ -37,7 +37,7 @@ use Optikus::Pretty;
 use Optikus::CmdLine;
 use Optikus::Utils ':all';
 
-my $version = "0.1";
+my $version = "0.2";
 my $copyright = "oscan $version\nCopyright (C) 2006-2007, vitki.net\n";
 
 my %options  = ();
