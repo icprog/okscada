@@ -6,7 +6,7 @@ dnl **** configure.ac for Optikus ****
 
 dnl ---- Project requisites ---
 AC_PREREQ([2.59])
-AC_INIT([optikus], [0.1], [ivandeex@gmail.com])
+AC_INIT([optikus], [0.2], [ivandeex@gmail.com])
 AC_CONFIG_AUX_DIR(config)
 AM_INIT_AUTOMAKE
 AC_DEFINE([PACKAGE_COPYRIGHT], ["Copyright (c) 2006-2007, ivandeex"],
