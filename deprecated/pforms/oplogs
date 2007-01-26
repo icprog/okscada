@@ -36,7 +36,7 @@ use utf8;
 use FileHandle;
 use Gtk2;
 use Optikus::Log ':all';
-use Optikus::Forms::Util;
+use Optikus::Canvas::Util;
 
 use constant TEXT_FONT => "Courier New Bold 13";
 use constant MAX_CHUNK => 100000;
@@ -46,9 +46,11 @@ my $win;
 
 pforms_gtk_init("Optikus Log Viewer");
 create_window(
-              "$root_dir/var/log/remote.log",
-              "$root_dir/var/log/pforms.log",
-              "$root_dir/var/log/ohub.log"
+              "$root_home/var/log/scripts.log",
+              "$root_home/var/log/remote.log",
+              "$root_home/var/log/ohub.log",
+              "$root_home/var/log/pforms.log",
+              "$root_home/var/log/qforms.log"
              );
 Gtk2->main;
 
@@ -108,7 +110,7 @@ sub create_window
     create_page($win, $note, $file);
   }
   $win->show_all;
-  Optikus::Forms::Util::set_window_icon($win, "kpic/toggle_log.png");
+  Optikus::Canvas::Util::set_window_icon($win, "kpic/toggle_log.png");
 }
 
 

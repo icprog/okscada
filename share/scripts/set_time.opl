@@ -1,0 +1,3 @@
+# vi: syntax=perl
+olog "this sample script triggers timeshot in simple-subject";
+tput "set_timeshot", 1;

@@ -16,6 +16,6 @@ docdir = $(datadir)/doc
 # We'll add to this later, on a library-by-library basis
 dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README
 
-# Shared data installation takes long, shall be the last.
-SUBDIRS += data
+# Shared data installation takes long, shall be the last one.
+SUBDIRS += share
 

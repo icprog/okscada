@@ -24,76 +24,63 @@
 
 */
 
+#include "oqdock.h"
+
 #include <qlayout.h>
-#include <qframe.h>
-#include <qlabel.h>
-#include <qtooltip.h>
-#include <qdir.h>
+#include <qgroupbox.h>
 #include <qdatetime.h>
 #include <qobjectlist.h>
 #include <qstringlist.h>
 #include <qmessagebox.h>
+#include <qdockarea.h>
+#include <qstatusbar.h>
 
-#include "oqdock.h"
-
-#include <stdlib.h>
-#include <iostream>
 #include <optikus/log.h>
 
 
-/*				OQDockBar				*/
+#define qDebug(...)
 
 #define TIME_SUBJECT		"sample"
 #define TIME_VAR			TIME_SUBJECT "@gm_time.tm_"
-#define PROCLIST_PERIOD		3000
+#define PROCLIST_PERIOD		2000
 #define WALLTIME_PERIOD		500
 
 
-//
-// .
-//
+/* ======== Dock Bar ======== */
+
+
 OQDockBar::OQDockBar(OQWatch *_watch)
+	:	QMainWindow(),
+		watch(_watch)
 {
-	QVBoxLayout *vert = new QVBoxLayout(this);
+	setUsesBigPixmaps(true);
+	setDockWindowsMovable(false);
 
-	QHBoxLayout *upper = new QHBoxLayout;
-	upper->setMargin(4);
-	upper->setSpacing(10);
-	vert->addLayout(upper);
+	QToolBar *top = new QToolBar(this);
+	createProgramButtons(top);
+	top->setStretchableWidget(new QWidget(top));
 
-	QHBoxLayout *lower = new QHBoxLayout;
-	lower->setMargin(4);
-	lower->setSpacing(10);
-	vert->addLayout(lower);
+	(new QFrame(top))->setFrameStyle(QFrame::VLine | QFrame::Sunken);
+	serverbox = new OQServerBox(this, top);
+	new OQServerStatus(this, top);
+	new OQScriptBox(this, top);
 
-	progbar = new QHBoxLayout;
-	progbar->setSpacing(4);
-	timebar = new QVBoxLayout;
-	upper->addLayout(progbar);
-	upper->addStretch(1);
-	QFrame *sep1 = new QFrame(this);
-	sep1->setFrameStyle(QFrame::VLine | QFrame::Sunken);
-	upper->addWidget(sep1, 0);
-	upper->addLayout(timebar);
-
-	subjectbar = new QHBoxLayout;
-	statebar = new QHBoxLayout;
-	statebar->setSpacing(4);
-	lower->addLayout(subjectbar);
-	lower->addStretch(1);
-	QFrame *sep2 = new QFrame(this);
-	sep2->setFrameStyle(QFrame::VLine | QFrame::Sunken);
-	lower->addWidget(sep2, 0);
-	lower->addLayout(statebar);
-
-	createProgramButtons();
-	createOtherWidgets();
-	proclist_timer = startTimer(PROCLIST_PERIOD);
-	walltime_timer = startTimer(WALLTIME_PERIOD);
-
+	(new QFrame(top))->setFrameStyle(QFrame::VLine | QFrame::Sunken);
+	QWidget *timebox = new QWidget(top);
+	QBoxLayout *lo = new QVBoxLayout(timebox, 5, 2);
+	lo->setAutoAdd(true);
+	simtime = new OQTimeLabel("SIM", timebox);
+	walltime = new OQTimeLabel("MSK", timebox);
 	simtime_sec_id = 0;
 
-	watch = _watch ?: watch->getInstance();
+	subjectbox = new QGroupBox(this);
+	lo = new QHBoxLayout(subjectbox, 5, 2);
+	lo->setAutoAdd(true);
+	lo->addStretch(1);
+	setCentralWidget(subjectbox);
+
+	proclist_timer = startTimer(PROCLIST_PERIOD);
+	walltime_timer = startTimer(WALLTIME_PERIOD);
 
 	connect(watch,
 		SIGNAL(subjectsUpdated(const QString&, const QString&, const QString&)),
@@ -102,17 +89,37 @@ OQDockBar::OQDockBar(OQWatch *_watch)
 	connect(watch,
 		SIGNAL(dataUpdated(const owquark_t&, const QVariant&, long)),
 		SLOT(updateData(const owquark_t&, const QVariant&, long)));
+
+	top->adjustSize();
+	resize(top->width() + 4, 1);
 }
 
 
-//
-// .
-//
+void
+OQDockBar::createProgramButtons(QToolBar *top)
+{
+	new OQProgramButton(this, top, "oqecho", "",
+						"tools/book.png", "Message Viewer");
+	new OQProgramButton(this, top, "oqmsg", "",
+						"tools/nav.png", "Message Center");
+	new OQProgramButton(this, top, "oqmap", "",
+						"tools/earth.png", "Map View");
+	new OQProgramButton(this, top, "oqscreens", "root",
+						"tools/tree.png", "Screen Viewer");
+	new OQProgramButton(this, top, "oqlogs", "",
+						"kpic/toggle_log.png", "Log Viewer");
+	new OQProgramButton(this, top, "oqsee", "",
+						"kpic/viewmag.png", "Data Viewer");
+	new OQProgramButton(this, top, "oqedit", "",
+						"kpic/colorize.png", "Screen Editor");
+}
+
+
 void
 OQDockBar::timerEvent(QTimerEvent *event)
 {
 	if (event->timerId() == proclist_timer) {
-		refreshProcessList();
+		updateProcessList();
 	}
 	else if (event->timerId() == walltime_timer) {
 		QDateTime dt(QDateTime::currentDateTime());
@@ -124,18 +131,15 @@ OQDockBar::timerEvent(QTimerEvent *event)
 }
 
 
-//
-// .
-//
 void
 OQDockBar::updateSubjects(const QString& all_subjects,
 							const QString& subject, const QString& state)
 {
 	if (all_subjects != subject_list) {
 		subject_list = all_subjects;
-		OQSubjectBox::updateGroupWidget(all_subjects, this, getSubjectBar());
+		OQSubjectBox::updateGroupWidget(all_subjects, subjectbox, 0);
 	}
-	OQSubjectBox::updateGroupWidget(subject, state, this, getSubjectBar());
+	OQSubjectBox::updateGroupWidget(subject, state, subjectbox, 0);
 
 	if (subject == TIME_SUBJECT) {
 		if (state.isEmpty()) {
@@ -153,9 +157,6 @@ OQDockBar::updateSubjects(const QString& all_subjects,
 }
 
 
-//
-// .
-//
 void
 OQDockBar::updateData(const owquark_t& info, const QVariant& v, long time)
 {
@@ -164,18 +165,15 @@ OQDockBar::updateData(const owquark_t& info, const QVariant& v, long time)
 	}
 	if (info.ooid == simtime_sec_id) {
 		simtime->set(
-			watch->getInt(TIME_VAR "year"), watch->getInt(TIME_VAR "mon"),
-			watch->getInt(TIME_VAR "mday"), watch->getInt(TIME_VAR "hour"),
-			watch->getInt(TIME_VAR "min"), watch->getInt(TIME_VAR "sec"));
+			watch->readInt(TIME_VAR "year"), watch->readInt(TIME_VAR "mon"),
+			watch->readInt(TIME_VAR "mday"), watch->readInt(TIME_VAR "hour"),
+			watch->readInt(TIME_VAR "min"), watch->readInt(TIME_VAR "sec"));
 	}
 }
 
 
-//
-// .
-//
 void
-OQDockBar::refreshProcessList()
+OQDockBar::updateProcessList()
 {
 	QString newlist;
 	QDir proc("/proc");
@@ -220,9 +218,6 @@ OQDockBar::refreshProcessList()
 }
 
 
-//
-// .
-//
 bool
 OQDockBar::processIsAlive(const char *program)
 {
@@ -231,135 +226,73 @@ OQDockBar::processIsAlive(const char *program)
 }
 
 
-//
-// .
-//
-void
-OQDockBar::createOtherWidgets()
-{
-	simtime = new OQTimeLabel("SIM", this);
-	walltime = new OQTimeLabel("MSK", this);
-
-	serverbox = new OQServerBox(this, statebar);
-	new OQServerStatus(this, statebar);
-	new OQScriptBox(this, statebar);
-}
-
-
-//
-// .
-//
 void
 OQDockBar::enableHub(bool on)
 {
-	OQApplication *app = OQApplication::oqApp;
-	QString cmd = app->bin_home + "/";
-	cmd.append(on ? "oscan -E" : "ocontrol stop");
-	if (!app->log_file.isNull())
-		cmd.append(" >> " + app->log_file + " 2>&1");
+	QString cmd;
+	if (on)
+		cmd = OQApp::bin.filePath("oscan") + " -E";
+	else
+		cmd = OQApp::bin.filePath("ocontrol") + " stop";
+	if (!OQApp::log.name().isNull())
+		cmd.append(" >> " + OQApp::log.name() + " 2>&1");
 	cmd.append(" &");
-	//std::cout << "execute: " << cmd << "\n";
+	qDebug("execute: " + cmd);
 	system(cmd);
 }
 
 
-//
-// .
-//
 void
 OQDockBar::checkinHub()
 {
-	refreshProcessList();
+	updateProcessList();
 	if (!serverbox->isOn())
 		enableHub(true);
 }
 
 
-//
-// .
-//
-void
-OQDockBar::createProgramButtons()
+/* ======== OQDockButton ======== */
+
+
+OQDockButton::OQDockButton(OQDockBar *parent, QToolBar *toolbar,
+					const QString& _icon_on, const QString& _icon_off,
+					const QString& _tip_on, const QString& _tip_off,
+					bool toggle)
+	:	QAction(parent),
+		icon_on(_icon_on),
+		icon_off(_icon_off.isNull() ? _icon_on : _icon_off),
+		tip_on(_tip_on),
+		tip_off(_tip_off.isNull() ? _tip_on : _tip_off)
 {
-	new OQProgramButton(this, "oqecho", "",
-						"tools/book.png", "Message Viewer");
-	new OQProgramButton(this, "oqmsg", "",
-						"tools/sb_uvo.png", "Message Center");
-	new OQProgramButton(this, "oqmap", "",
-						"kpic/fork.png", "Map View");
-	new OQProgramButton(this, "oqforms", "root",
-						"tools/tree.png", "Display Viewer");
-	new OQProgramButton(this, "oqlogs", "",
-						"kpic/toggle_log.png", "Log Viewer");
-	new OQProgramButton(this, "oqsee", "",
-						"kpic/viewmag.png", "Data Viewer");
-	new OQProgramButton(this, "oqedit", "",
-						"kpic/colorize.png", "Display Editor");
-}
-
-
-/*				OQDockButton				*/
-
-
-//
-// .
-//
-OQDockButton::OQDockButton(OQDockBar *parent, QBoxLayout *layout,
-					const char *_icon_on, const char *_icon_off,
-					const char *_tooltip_on, const char *_tooltip_off,
-					bool toggle, int size)
-	: OQPushButton(0, 0, parent)
-{
-	setFocusPolicy(NoFocus);
-	setFlat(true);
-	setToggleButton(toggle);
-	if (size > 0) {
-		setMinimumSize(size, size);
-		setMaximumSize(size, size);
-	}
-	icon_on = _icon_on;
-	icon_off = _icon_off ?: _icon_on;
-	tooltip_on = _tooltip_on;
-	tooltip_off = _tooltip_off ?: _tooltip_on;
+	setToggleAction(toggle);
 	setOn(false);
-	layout->addWidget(this);
+	addTo(toolbar);
 }
 
 
-//
-// .
-//
 void
 OQDockButton::setOn(bool on)
 {
-	setPixmap(OQPixmap(on ? icon_on : icon_off));
-	const char *tooltip = on ? tooltip_on : tooltip_off;
-	if (tooltip)
-		QToolTip::add(this, tooltip);
-	else
-		QToolTip::remove(this);
-	OQPushButton::setOn(on);
+	setIconSet(OQPixmap(on ? icon_on : icon_off));
+	setToolTip(on ? tip_on : tip_off);
+	if (isToggleAction())
+		QAction::setOn(on);
 }
 
 
-/*				OQServerBox				*/
+/* ======== OQServerBox ======== */
 
-//
-// .
-//
-OQServerBox::OQServerBox(OQDockBar *dockbar, QBoxLayout *layout)
-	: OQDockButton(dockbar, layout,
-			"kpic/viewmag.png", "kpic/viewmagoff.png",
-			"Server: RUNS", "Server: STOPPED", true, 36)
+
+OQServerBox::OQServerBox(OQDockBar *dockbar, QToolBar *toolbar)
+	: OQDockButton(dockbar, toolbar,
+			"kpic/exec.png", "kpic/stop.png",
+			"Server: RUNS", "Server: STOPPED", true)
 {
 	connect(dockbar, SIGNAL(processesUpdated(const QString&)), SLOT(updateState()));
-	connect(this, SIGNAL(clicked()), SLOT(boxClicked()));
+	connect(this, SIGNAL(activated()), SLOT(boxClicked()));
 }
 
 
-//
-// .
-//
 void
 OQServerBox::updateState()
 {
@@ -367,9 +300,6 @@ OQServerBox::updateState()
 }
 
 
-//
-// .
-//
 void
 OQServerBox::boxClicked()
 {
@@ -377,15 +307,13 @@ OQServerBox::boxClicked()
 }
 
 
-/*				OQServerStatus				*/
+/* ======== OQServerStatus ======== */
 
-//
-// .
-//
-OQServerStatus::OQServerStatus(OQDockBar *dockbar, QBoxLayout *layout)
-	: OQDockButton(dockbar, layout,
-			"kpic/reload.png", "kpic/player_stop.png",
-			"Current Mode: RUNNING", "Current Mode: STOP", false, 36)
+
+OQServerStatus::OQServerStatus(OQDockBar *dockbar, QToolBar *toolbar)
+	: OQDockButton(dockbar, toolbar,
+			"kpic/player_play.png", "kpic/player_stop.png",
+			"Current Mode: RUNNING", "Current Mode: STOP", false)
 {
 	connect(OQWatch::getInstance(),
 		SIGNAL(subjectsUpdated(const QString&, const QString&, const QString&)),
@@ -393,9 +321,6 @@ OQServerStatus::OQServerStatus(OQDockBar *dockbar, QBoxLayout *layout)
 }
 
 
-//
-// .
-//
 void
 OQServerStatus::updateState(const QString& list,
 							const QString& subject, const QString& state)
@@ -405,26 +330,21 @@ OQServerStatus::updateState(const QString& list,
 }
 
 
-/*				OQScriptBox				*/
+/* ======== OQScriptBox ======== */
 
-//
-// .
-//
-OQScriptBox::OQScriptBox(OQDockBar *dockbar, QBoxLayout *layout)
-	: OQDockButton(dockbar, layout,
+
+OQScriptBox::OQScriptBox(OQDockBar *dockbar, QToolBar *toolbar)
+	: OQDockButton(dockbar, toolbar,
 			"kpic/exec.png", "kpic/editclear.png",
 			"scenarios are running.\nPress here to terminate them.",
 			"scenarios not found.\nYou can press here to be sure...",
-			false, 36)
+			false)
 {
 	connect(dockbar, SIGNAL(processesUpdated(const QString&)), SLOT(updateState()));
-	connect(this, SIGNAL(clicked()), SLOT(boxClicked()));
+	connect(this, SIGNAL(activated()), SLOT(boxClicked()));
 }
 
 
-//
-// .
-//
 void
 OQScriptBox::updateState()
 {
@@ -432,44 +352,37 @@ OQScriptBox::updateState()
 }
 
 
-//
-// .
-//
 void
 OQScriptBox::boxClicked()
 {
-	int bno = QMessageBox::question(this,
-					tr("Kill Scripts Confirmation"),
-					tr("Are you sure to stop\nrunning scenarios ?"),
-					tr("&Yes"), tr("&No"), QString::null, 0, 1);
-	if (bno == 0) {
-		QString cmd = OQApplication::bin_home + "/" + "ocontrol cleanup";
+	int ans = QMessageBox::warning(
+					getDockBar(),
+					"Kill Scripts Confirmation",
+					"Are you sure to stop\nrunning scenarios ?",
+					QMessageBox::Yes | QMessageBox::Default,
+					QMessageBox::No | QMessageBox::Escape);
+	if (ans == QMessageBox::Yes) {
+		QString cmd = OQApp::bin.filePath("ocontrol") + " cleanup";
 		olog("running scripts killed");
 	}
 }
 
 
-/*				OQProgramButton				*/
+/* ======== OQProgramButton ======== */
 
-//
-// .
-//
-OQProgramButton::OQProgramButton(OQDockBar *dockbar,
-								const char *_program, const char *_param,
-								const char *icon, const char *tooltip)
-	: OQDockButton(dockbar, dockbar->getProgBar(), icon, 0, tooltip, 0)
+
+OQProgramButton::OQProgramButton(OQDockBar *dockbar, QToolBar *toolbar,
+								const QString& _program, const QString& _param,
+								const QString& icon, const QString& tooltip)
+	:	OQDockButton(dockbar, toolbar, icon, 0, tooltip, 0),
+		program(_program), param(_param)
 {
-	program = _program;
-	param = _param;
-	connect(this, SIGNAL(clicked()), SLOT(buttonClicked()));
+	connect(this, SIGNAL(activated()), SLOT(buttonClicked()));
 	connect(dockbar, SIGNAL(processesUpdated(const QString&)),
 			SLOT(updateState()));
 }
 
 
-//
-// .
-//
 void
 OQProgramButton::updateState()
 {
@@ -477,14 +390,11 @@ OQProgramButton::updateState()
 }
 
 
-//
-// .
-//
 void
 OQProgramButton::buttonClicked()
 {
 	if (isOn()) {
-		QString cmd = OQApplication::bin_home + "/" + program;
+		QString cmd = OQApp::bin.filePath(program);
 		if (NULL != param && *param) {
 			cmd.append(" ");
 			cmd.append(param);
@@ -496,52 +406,45 @@ OQProgramButton::buttonClicked()
 		cmd.append(program);
 		system(cmd);
 	}
-	getDockBar()->refreshProcessList();
+	getDockBar()->updateProcessList();
 }
 
 
-/*				OQTimeLabel				*/
+/* ======== OQTimeLabel ======== */
 
-//
-// .
-//
-OQTimeLabel::OQTimeLabel(const char *_region, OQDockBar *dockbar)
-	: QLabel(dockbar)
+
+OQTimeLabel::OQTimeLabel(const QString& _region, QWidget *parent)
+	: QLabel(parent), region(_region)
 {
 	setTextFormat(PlainText);
-	setFont(QFont("Courier New", 13, QFont::Bold));
-	dockbar->getTimeBar()->addWidget(this);
-	region = _region;
+	setFont(QFont("Courier New", 12, QFont::Bold));
 	set();
 }
 
 
-//
-// .
-//
 void
 OQTimeLabel::set(int yy, int mm, int dd, int hh, int mi, int ss)
 {
 	QString text;
 	if (yy <= 0 || mm <= 0 || dd <= 0 || hh < 0 || mi < 0 || ss < 0) {
-		text.sprintf("%3s ----/--/-- --:--:--", region);
+		text.sprintf("%3s ----/--/-- --:--:--", region.ascii());
 	} else {
 		text.sprintf("%3s %04d/%02d/%02d %03d:%02d:%02d",
-					region, yy, mm, dd, hh, mi, ss);
+					region.ascii(), yy, mm, dd, hh, mi, ss);
 	}
 	setText(text);
 }
 
 
-/*					main()					*/
+/* ======== main() ======== */
 
 
 int
 main(int argc, char **argv)
 {
-	OQApplication app("oqdock", argc, argv);
+	OQApp app("oqdock", argc, argv);
 	OQWatch watch("oqdock");
-	OQDockBar dockbar;
+	OQDockBar dockbar(&watch);
 	watch.connect();
 	app.setMainWidget(&dockbar);
 	dockbar.setCaption("Optikus Dock Bar");
@@ -550,4 +453,3 @@ main(int argc, char **argv)
 	dockbar.show();
 	return app.exec();
 }
-

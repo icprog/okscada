@@ -1129,8 +1129,8 @@ ohubExitMonitoring(void)
 			if (ohub_mons[i].mon_p)
 				ohubDeallocateMonitor(ohub_mons[i].mon_p);
 		}
-		oxfree(ohub_mons);
 	}
+	oxfree(ohub_mons);
 	ohub_mons = NULL;
 	ohub_mon_qty = 0;
 	ohub_mon_securing_qty = 0;

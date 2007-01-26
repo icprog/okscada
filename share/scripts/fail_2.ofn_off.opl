@@ -1,0 +1,3 @@
+# vi: syntax=perl
+tput "bfail[2]", 0;
+tput "bfail[3]", 1;

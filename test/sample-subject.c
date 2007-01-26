@@ -30,6 +30,7 @@
 #include <optikus/log.h>
 #include <optikus/util.h>
 #include <optikus/conf-net.h>	/* for OUHTONS,... */
+#include <optikus/conf-mem.h>	/* for oxvcopy */
 
 #include <stdio.h>
 #include <signal.h>
@@ -45,6 +46,9 @@
 #define SAMPLE_MODULE	SAMPLE_SYMTABLE
 
 #define MAX_SHOW_MSG_WORD	16
+
+#define G2R(g)	((g)*(M_PI/180.))
+
 
 int max_show_msg_word = MAX_SHOW_MSG_WORD;
 
@@ -113,9 +117,10 @@ int     param6 = 1;
 short   param7 = 2;
 char    param8[40] = "nothing";
 
-int     arr1[8];
-short   arr2[8];
-int     arr3[100];
+int		arr1[8];
+short	arr2[8];
+int		arr3[100];
+int		arr4[10][10][10];
 
 float   num1 = 0.3;
 double  num2 = 0.4;
@@ -134,6 +139,9 @@ struct
 	char    b5 : 5;
 } bs8[8];
 
+
+double	xtime;
+
 int     pend_cmd;
 int     paused;
 int		mainloop_i;
@@ -141,8 +149,32 @@ int		test_counter;
 int		show_stats;
 long	stat_time;
 
-time_t	unix_time;
-struct tm local_time, gm_time;
+time_t	unix_time, unix_time_at_timeshot;
+struct tm local_time, gm_time, timeshot;
+int set_timeshot, local_is_gm;
+
+
+/*
+ * Test values
+ */
+double
+update_xtime()
+{
+	struct timeval tv;
+	xtime = (double) time(0);
+	gettimeofday(&tv, 0);
+	xtime += tv.tv_usec * 1.e-6;
+	return xtime;
+}
+
+
+double
+testval(double min, double max, double speed, double offset)
+{
+	if (speed == 0)
+		speed = 2;
+	return (sin(xtime / speed + offset*M_PI/50) + 1) * (max - min) / 2 + min;
+}
 
 
 /*
@@ -160,14 +192,76 @@ int chan_a_power;
 int chan_a_restart;
 int prev_chan_a_restart;
 int disp_loop_cnt;
+int disp_loop_num = 5;
+
+int dial_cnt;
+double xdial[4];
+int    fdial[4];
+
+double press[4], inpress[4];
+int pressctl[4];
+int valve[6];
+
+int crun = 1;
+double cval[4];
+double cspeed[4] = { 10, 20, 30, 40 };
+
+int sa_run = 1;
+double sa2_angle, sa2_sunx, sa2_suny;
+int sa2_night, sa2_supp, sa2_zone;
+double sa4_angle, sa4_sunx, sa4_suny;
+int sa4_night, sa4_supp, sa4_zone;
+
+int bfail[4];
+char sensor[8][8];
+
 
 void
 display_loop()
 {
-	if (++disp_loop_cnt < 5)
+	int i;
+
+	if (crun) {
+		int i;
+		for (i = 0; i < 4; i++)
+			cval[i] = testval(0, 100, cspeed[i]/10.0, 0);
+	}
+
+	if (sa_run) {
+		sa2_angle = testval(0, 360, 31, 0);
+		sa2_sunx = testval(0, 1, 37, 0);
+		sa2_suny = testval(0, 1, 39, 0);
+		sa2_night = testval(0, 9, 14, 0) < 1;
+		sa2_supp = (int) testval(0, 1.99, 35, 0);
+		sa2_zone = (int) testval(0, 2, 36, 0) > 0;
+
+		sa4_angle = testval(0, 360, 31, 20);
+		sa4_sunx = testval(0, 1, 37, 20);
+		sa4_suny = testval(0, 1, 39, 20);
+		sa4_night = testval(0, 9, 14, 20) < 1;
+		sa4_supp = (int) testval(0, 1.99, 35, 20);
+		sa4_zone = (int) testval(0, 2, 36, 20) > 0;
+	}
+
+	dial_cnt = (dial_cnt + 5) % 360;
+
+	if (fdial[0])
+		xdial[0] = fabs(sin(G2R(dial_cnt))) * 100;
+	if (fdial[1])
+		xdial[1] = sqrt(xdial[0]);
+	if (fdial[2])
+		xdial[2] = cos(G2R(dial_cnt)) * 10;
+	if (fdial[3])
+		xdial[3] = xdial[2] * xdial[2];
+
+	if (++disp_loop_cnt < disp_loop_num)
 		return;
+	disp_loop_cnt = 0;
+
+	for (i = 0; i < 3; i++)
+		valve[i] = !valve[i];
+
 	if (chan_a_on) {
-		disp_loop_cnt = 0;
 		bus_no = (data_counter / 10) % 10;
 		data_counter = (data_counter + 1) % 1000;
 	}
@@ -206,9 +300,6 @@ double	map_h_max   = 1000;
 double	map_h_speed = 1;
 int		map_year0, map_mon0, map_day0;
 time_t	map_epoch;
-
-#define PI		3.1415926
-#define G2R(g)	((g)*(PI/180.))
 
 
 void
@@ -331,12 +422,27 @@ main_loop(void)
 	}
 
 	time(&unix_time);
-	localtime_r(&unix_time, &local_time);
-	local_time.tm_year += 1900;
-	local_time.tm_mon += 1;
+
 	gmtime_r(&unix_time, &gm_time);
 	gm_time.tm_year += 1900;
 	gm_time.tm_mon += 1;
+
+	if (local_is_gm)
+		gmtime_r(&unix_time, &local_time);
+	else
+		localtime_r(&unix_time, &local_time);
+	local_time.tm_year += 1900;
+	local_time.tm_mon += 1;
+
+	if (set_timeshot) {
+		if (!unix_time_at_timeshot) {
+			oxvcopy(&local_time, &timeshot);
+			unix_time_at_timeshot = unix_time;
+		} else if (unix_time - unix_time_at_timeshot >= 3) {
+			set_timeshot = 0;
+			unix_time_at_timeshot = 0;
+		}
+	}
 
 	test_counter = i;
 	arr1[0] = arr2[0] = (char) i;
@@ -534,11 +640,13 @@ main(int argc, char *argv[])
 	for (j = 0; j < 8; j++)
 		arr1[j] = arr2[j] = j;
 	for (i = 0; 1; i++) {
+		update_xtime();
 		if (main_loop() != 0)
 			break;
 		map_loop();
 		display_loop();
 		for (j = 0; j < 10; j++) {
+			update_xtime();
 			stress1_loop();
 			osubjSleep(10);
 		}

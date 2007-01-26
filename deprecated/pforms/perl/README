@@ -1,5 +1,6 @@
-Perl bindings for Optikus Forms, version 0.01
-===================
+Library of Perl widgets for the Optikus data presentation canvas.
+=================================================================
+version 0.1
 
 The README is used to introduce the module and provide instructions on
 how to install the module, any machine dependencies it may have (for
@@ -12,6 +13,7 @@ archive can use it get an idea of the modules uses. It is usually a
 good idea to provide version information here so that people can
 decide whether fixes for the module are worth downloading.
 
+
 INSTALLATION
 
 To install this module type the following:
@@ -21,11 +23,14 @@ To install this module type the following:
    make test
    make install
 
+
 DEPENDENCIES
 
 This module requires these other modules and libraries:
 
-  blah blah blah
+  Optikus::Log
+  Optikus::Watch
+
 
 COPYRIGHT AND LICENCE
 

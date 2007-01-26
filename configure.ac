@@ -22,7 +22,7 @@ AC_CONFIG_SRCDIR([ChangeLog])
 AC_CONFIG_HEADERS([include/config.h])
 AC_CONFIG_FILES([Makefile include/Makefile util/Makefile
 				hub/Makefile watch/Makefile subj/Makefile
-				doc/Makefile data/Makefile test/Makefile])
+				doc/Makefile share/Makefile test/Makefile])
 
 dnl TEMPORARY, DEVELOPMENT ONLY !!!
 AC_PREFIX_DEFAULT([/home/vit/optikus])

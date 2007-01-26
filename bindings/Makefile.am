@@ -3,7 +3,7 @@
 
 EXTRA_DIST = \
 	perl/MANIFEST perl/README perl/Changes \
-	perl/META.yml perl/typemap \
+	perl/Makefile.PL perl/META.yml perl/typemap \
 	perl/ppport.h perl/optikus-perl.h \
 	perl/Watch.xs perl/Log.xs perl/Optikus.xs \
 	perl/lib/Optikus/Watch.pm perl/lib/Optikus/CmdLine.pm \

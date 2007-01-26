@@ -1234,8 +1234,14 @@ oseeOpenSelDone(GtkWidget * w, GtkFileSelection * filew)
 		if (!fgets(line, sizeof(line), file))
 			break;
 		strTrim(line);
-		if (*line == ';' || !*line || *line == '\r' || *line == '\t')
-			continue;
+		switch (*line) {
+			case ';':
+			case '#':
+			case '\0':
+			case '\r':
+			case '\n':
+				continue;
+		}
 		n = sscanf(line, "%d %s %s %s", &row, desc, shex, dpath);
 		if (n == 4) {
 			if (!strcmp(shex, "hex"))

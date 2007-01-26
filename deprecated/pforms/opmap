@@ -32,7 +32,7 @@ use lib "$ENV{OPTIKUS_HOME}/lib/perl5/site_perl";
 
 use utf8;
 use Gtk2;
-use Optikus::Forms::Util;
+use Optikus::Canvas::Util;
 use Time::Local;
 use Time::HiRes;
 use Optikus::Watch;
@@ -86,7 +86,7 @@ sub create_main_window
   $window = Gtk2::Window->new("toplevel");
   $window->signal_connect("destroy", sub { Gtk2->main_quit; });
   $window->show;
-  Optikus::Forms::Util::set_window_icon($window, "kpic/fork.png");
+  Optikus::Canvas::Util::set_window_icon($window, "kpic/fork.png");
   $vbox = Gtk2::VBox->new(0, 0);
 
   $picture = create_picture();

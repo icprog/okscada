@@ -24,62 +24,63 @@
 
 */
 
-#include <qlayout.h>
-#include <qlabel.h>
-#include <qvariant.h>
-
 #include "oqcommon.h"
 #include "oqwatch.h"
 
+#include <qtoolbar.h>
+#include <qmainwindow.h>
+#include <qaction.h>
+#include <qlabel.h>
 
-#define BUTTON_SIZE		44
 
 class OQDockBar;
 
 
-class OQDockButton : public OQPushButton
+class OQDockButton : public QAction
 {
 	Q_OBJECT
-public:
-	OQDockButton(OQDockBar *parent, QBoxLayout *layout,
-				const char *icon_on, const char *icon_off,
-				const char *tooltip_on, const char *tooltip_off,
-				bool toggle = true, int size = BUTTON_SIZE);
 
-	OQDockBar *getDockBar() { return (OQDockBar *) parentWidget(); }
+public:
+	OQDockButton(OQDockBar *parent, QToolBar *toolbar,
+				const QString& icon_on, const QString& icon_off,
+				const QString& tip_on, const QString& tip_off,
+				bool toggle = true);
+
+	OQDockBar *getDockBar() { return (OQDockBar *) parent(); }
 
 public slots:
 	void setOn(bool on);
 
 private:
 
-	const char *icon_on, *icon_off;
-	const char *tooltip_on, *tooltip_off;
+	QString icon_on, icon_off, tip_on, tip_off;
 };
 
 
 class OQProgramButton : public OQDockButton
 {
 	Q_OBJECT
+
 public:
-	OQProgramButton(OQDockBar *dockbar,
-					const char *program, const char *param,
-					const char *icon, const char *tooltip);
+	OQProgramButton(OQDockBar *dockbar, QToolBar *toolbar,
+					const QString& program, const QString& param,
+					const QString& icon, const QString& tip);
 public slots:
 	void buttonClicked();
 	void updateState();
 
 protected:
-	const char *program;
-	const char *param;
+	QString program, param;
 };
 
 
 class OQServerBox : public OQDockButton
 {
 	Q_OBJECT
+
 public:
-	OQServerBox(OQDockBar *dockbar, QBoxLayout *layout);
+	OQServerBox(OQDockBar *dockbar, QToolBar *toolbar);
+
 public slots:
 	void boxClicked();
 	void updateState();
@@ -89,8 +90,10 @@ public slots:
 class OQServerStatus : public OQDockButton
 {
 	Q_OBJECT
+
 public:
-	OQServerStatus(OQDockBar *dockbar, QBoxLayout *layout);
+	OQServerStatus(OQDockBar *dockbar, QToolBar *toolbar);
+
 public slots:
 	void updateState(const QString&, const QString&, const QString&);
 };
@@ -99,53 +102,55 @@ public slots:
 class OQTimeLabel : public QLabel
 {
 public:
-	OQTimeLabel(const char *region, OQDockBar *parent);
+	OQTimeLabel(const QString& region, QWidget *parent);
 	void set(int yy, int mm, int dd, int hh, int mi, int ss);
 	void set() { set(0,0,0, 0,0,0); }
+
 protected:
-	const char *region;
+	const QString region;
 };
 
 
 class OQScriptBox : public OQDockButton
 {
 	Q_OBJECT
+
 public:
-	OQScriptBox(OQDockBar *dockbar, QBoxLayout *layout);
+	OQScriptBox(OQDockBar *dockbar, QToolBar *toolbar);
+
 public slots:
 	void boxClicked();
 	void updateState();
 };
 
 
-class OQDockBar : public QWidget
+class OQDockBar : public QMainWindow
 {
 	Q_OBJECT
 
 public:
-	OQDockBar(OQWatch *watch = 0);
 
-	QBoxLayout *getProgBar() { return progbar; }
-	QBoxLayout *getSubjectBar() { return subjectbar; }
-	QBoxLayout *getTimeBar() { return timebar; }
-	void refreshProcessList();
+	OQDockBar(OQWatch *watch);
+
+	void updateProcessList();
 	bool processIsAlive(const char *process);
 	const QString &getProcList() { return proclist; }
 	void enableHub(bool on);
 	void checkinHub();
 
 protected slots:
+
 	void updateSubjects(const QString& list,
 						const QString& subject, const QString& state);
 	void updateData(const owquark_t& , const QVariant& value, long time);
 
 signals:
+
 	void processesUpdated(const QString& processes);
 
-protected:
-	void createProgramButtons();
-	void createOtherWidgets();
+private:
 
+	void createProgramButtons(QToolBar *top);
 	void timerEvent(QTimerEvent *);
 
 	OQWatch *watch;
@@ -154,16 +159,12 @@ protected:
 	QString proclist;
 	int proclist_timer;
 
-	QBoxLayout *progbar;
-	QBoxLayout *subjectbar;
-	QBoxLayout *timebar;
-	QBoxLayout *statebar;
+	QWidget *subjectbox;
+	OQServerBox *serverbox;
 
 	OQTimeLabel *simtime;
 	ooid_t simtime_sec_id;
 	OQTimeLabel *walltime;
 	int walltime_timer;
-
-	OQServerBox *serverbox;
 };
 

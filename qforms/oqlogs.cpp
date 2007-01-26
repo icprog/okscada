@@ -55,7 +55,7 @@ OQLogView::OQLogView(const QString& title, QWidget *parent)
 	setFont(TEXT_FONT);
 	setMaxLogLines(MAX_CHUNK);
 	clear();
-	file.setName(OQApplication::log_home + "/" + title + ".log");
+	file.setName(OQApp::logs.filePath(title + ".log"));
 	notifier = 0;
 	idle = 0;
 	recharge();
@@ -168,16 +168,17 @@ OQLogTab::OQLogTab(const QString& title, QTabWidget *tabs)
 int
 main(int argc, char **argv)
 {
-	OQApplication app("oqlogs", argc, argv);
+	OQApp app("oqlogs", argc, argv);
 	QVBox win;
 	win.setMinimumSize(400, 200);
 	win.resize(800, 400);
 	QTabWidget *tabs = new QTabWidget(&win);
 
-	new OQLogTab("remote", tabs);
-	new OQLogTab("pforms", tabs);
-	new OQLogTab("qforms", tabs);
-	new OQLogTab("ohub", tabs);
+	new OQLogTab("scripts", tabs);
+	new OQLogTab("remote",  tabs);
+	new OQLogTab("ohub",    tabs);
+	new OQLogTab("pforms",  tabs);
+	new OQLogTab("qforms",  tabs);
 
 	app.setMainWidget(&win);
 	win.setCaption("Optikus Log Viewer");

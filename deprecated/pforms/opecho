@@ -21,7 +21,7 @@
 #  $Revision$
 #  $Source$
 #
-#  Graphical wrapper around stream dumper.
+#  GUI for the Optikus control message echoer.
 #
 
 use strict;
@@ -35,7 +35,7 @@ use utf8;
 use FileHandle;
 use IPC::Open2;
 use Gtk2;
-use Optikus::Forms::Util;
+use Optikus::Canvas::Util;
 use Optikus::Log ':all';
 
 use constant TEXT_FONT => "Courier New Bold 13";
@@ -90,7 +90,7 @@ sub create_window
   create_pair($hbox, "kpic/configure.png",
               "Command", "Send command", "");
   $win->show_all();
-  Optikus::Forms::Util::set_window_icon($win, "tools/book.png");
+  Optikus::Canvas::Util::set_window_icon($win, "tools/book.png");
 }
 
 

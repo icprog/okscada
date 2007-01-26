@@ -95,15 +95,13 @@ OQEcho::~OQEcho()
 void
 OQEcho::kill()
 {
-	if (proc) {
-		if (proc->isRunning()) {
-			proc->tryTerminate();
-			if (proc->isRunning())
-				proc->kill();
-		}
-		delete proc;
-		proc = 0;
+	if (proc && proc->isRunning()) {
+		proc->tryTerminate();
+		if (proc->isRunning())
+			proc->kill();
 	}
+	delete proc;
+	proc = 0;
 }
 
 
@@ -111,9 +109,9 @@ void
 OQEcho::restart()
 {
 	kill();
-	QString cmd = OQApplication::bin_home + "/" + "sample-echo";
+	QString cmd = OQApp::bin.filePath("sample-echo");
 	proc = new QProcess(cmd);
-	proc->setWorkingDirectory(OQApplication::root_dir);
+	proc->setWorkingDirectory(OQApp::root);
 	proc->start();
 	scroll->setUnderline(true);
 	output("Starting...");
@@ -182,7 +180,7 @@ OQEcho::timerEvent(QTimerEvent *e)
 int
 main(int argc, char **argv)
 {
-	OQApplication app("oqecho", argc, argv);
+	OQApp app("oqecho", argc, argv);
 	OQEcho win;
 	app.setMainWidget(&win);
 	win.resize(800, 400);

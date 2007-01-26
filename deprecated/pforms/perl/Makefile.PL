@@ -1,6 +1,6 @@
 # -*-perl-*-    vi: set ts=4 sw=4 :
 #
-#  perl bindings for Optikus Forms.
+#  Library of Perl widgets for the Optikus data presentation canvas.
 #
 #  Copyright (C) 2006-2007, vitki.net
 #
@@ -29,7 +29,7 @@
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
-	NAME			=> "Optikus::Forms",
+	NAME			=> "Optikus::Canvas",
 	AUTHOR			=> 'vitki.net',
 );
 

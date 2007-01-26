@@ -1,0 +1,435 @@
+#!/usr/bin/perl
+# -*-perl-*-    vi: set ts=4 sw=4 :
+#
+#  Copyright (C) 2006-2007, vitki.net. All rights reserved.
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#  $Date$
+#  $Revision$
+#  $Source$
+#
+#  Synaptic screen viewer.
+#
+
+use strict;
+use FindBin qw[$Bin];
+use Cwd 'abs_path';
+BEGIN { $ENV{OPTIKUS_HOME} = abs_path("$Bin/..") unless $ENV{OPTIKUS_HOME}; }
+use lib "$ENV{OPTIKUS_HOME}/lib/perl5/site_perl";
+
+use utf8;
+use open ':utf8';
+
+use Gtk2;
+use Optikus::Canvas::Widget;
+use Optikus::Canvas::Util;
+use Optikus::Watch ':all';
+use Optikus::Log ':all';
+
+
+my $var_alias_file = "$etc_home/varalias.lst";
+my $display_list_file = "$etc_home/screens.lst";
+my $root_display = "root";
+
+my (%screens, %toggles, $listwin, $area, $statusbar, $popup_menu);
+my ($last_press_time);
+
+my $open_qty = 0;
+
+
+$Optikus::Canvas::Widget::TEST = 0;
+$Optikus::Canvas::Widget::SIMULATION = 0;
+for (@ARGV) {
+  if ($_ eq '-test') {
+    $Optikus::Canvas::Widget::TEST = 1;
+    last;
+  }
+}
+$Optikus::Canvas::Widget::TEST = 1
+  if exists $ENV{OPTIKUS_DATATEST};
+
+pforms_gtk_init("Optikus Screens");
+
+Optikus::Watch::init(client_name => "opscreens",
+                     server => $ENV{OPTIKUS_SERVER},
+                     msg_dest => "sample",
+                     conn_timeout => 0,
+                     def_timeout => 2000,
+                     period => 500,
+                     verbosity => 2,
+                    );
+my $acount = Optikus::Watch::readAliasFile($var_alias_file);
+olog "parsed $acount aliases";
+create_flist();
+my $initial = $ARGV[0];
+if (defined $initial) {
+  $initial .= ".osx" unless $initial =~ /\.osx$/;
+  if (activate_screen($initial)) {
+    toggle_screen_list(0);
+  } else {
+    undef $initial;
+  }
+}
+toggle_screen_list(1) unless defined $initial;
+Gtk2->main;
+
+sub toggle_screen_list
+{
+  my $on = shift;
+  if ($on) {
+    $listwin->show_all unless $listwin->visible;
+    $listwin->present;
+  }
+  if (not $on and $listwin->visible and $open_qty > 0) {
+    $listwin->hide;
+  }
+}
+
+sub destroy_screen
+{
+  my $name = shift;
+  my $screen = $screens{$name};
+  return unless defined $screen;
+  for my $item (@{$screen->{ITEMS}}) {
+    $item->forget;
+    $item->DESTROY;
+    #undef $item->{WIDGET};
+  }
+  $screen->{window}->destroy;
+  undef $screens{$name};
+  $open_qty--;
+  $open_qty = 0 if $open_qty < 0;
+  toggle_screen_list(1) unless $open_qty;
+  $toggles{$name}->set_active(0) if defined $toggles{$name};
+  olog "destroy screen [$name]\n";
+}
+
+sub toggle_screen
+{
+  my $name = shift;
+  my $toggle = $toggles{$name};
+  my $on = defined($toggle) ? $toggle->get_active() : 1;
+  if ($on) {
+    create_screen($name);
+  } else {
+    destroy_screen($name);
+  }
+}
+
+sub activate_screen
+{
+  my $name = shift;
+  $name .= ".osx"
+      if not defined $toggles{$name} and defined $toggles{"$name.osx"};
+  unless (defined($toggles{$name})) {
+    olog "no such screen: [$name]\n";
+    return 0;
+  }
+  if (defined($screens{$name})) {
+    close_popups();
+    $screens{$name}->{window}->present;
+  } else {
+    $toggles{$name}->set_active(1);
+  }
+  return 1;
+}
+
+sub bg_set
+{
+  my ($screen, $area, $name) = @_;
+  my $rcstyle = Gtk2::RcStyle->new;
+  $rcstyle->bg_pixmap_name("normal",
+                           defined($name) ? "$pic_home/$name" : undef);
+  $area->parent->modify_style($rcstyle) if defined $area;
+  for my $item (@{$screen->{ITEMS}}) {
+    next unless $item->{want_bg};
+    $item->{WIDGET}->modify_style($rcstyle);
+  }
+}
+
+sub create_screen
+{
+  my ($name, $filename) = @_;
+  close_popups();
+  $filename = "$scr_home/$name" unless defined $filename;
+  my $fwin = Gtk2::Window->new("toplevel");
+  my $title = $name;
+  $title =~ s/\.\w+$//;
+  $fwin->set_title("Display Viewer: $title");
+  $fwin->{tooltips} = Gtk2::Tooltips->new;
+  $fwin->signal_connect(delete_event => sub { destroy_screen($name); });
+  my $winbox = new Gtk2::VBox(0, 0);
+  $fwin->add($winbox);
+
+  my $thbox = Gtk2::HBox->new(0,0);
+  my $tools = Gtk2::Toolbar->new;
+  create_tool($tools,"Close current screen","kpic/stop.png",
+              sub { destroy_screen($name); });
+  $thbox->pack_start($tools, 0, 1, 2);
+  $tools->set_style("icons");
+  $tools = Gtk2::Toolbar->new;
+  create_tool($tools,"Show screen list","kpic/view_tree.png",
+              sub { toggle_screen_list(1); });
+  create_tool($tools,"Hide screen list","kpic/view_remove.png",
+              sub { toggle_screen_list(0); });
+  create_tool($tools,"Open root screen","tools/tree.png",
+              sub { activate_screen($root_display); });
+  $tools->set_style("icons");
+  $thbox->pack_start($tools, 0, 1, 2);
+  $tools = new Gtk2::Toolbar->new;
+  $thbox->pack_end ($tools, 0, 0, 0);
+  $tools->set_style("icons");
+  create_tool($tools,"Quit all screens","kpic/exit.png",
+              sub { quit_screens(); });
+  $winbox->pack_start($thbox, 0, 0, 0);
+
+  $area = Gtk2::Fixed->new;
+  my $scroll = Gtk2::ScrolledWindow->new;
+  $scroll->set_border_width(2);
+  $scroll->set_policy("automatic", "automatic");
+  $scroll->add_with_viewport($area);
+  $winbox->add($scroll);
+  $statusbar = Gtk2::Statusbar->new;
+  $winbox->pack_end($statusbar, 0, 0, 0);
+  $fwin->show_all;
+
+  my %screen;
+  $screen{window}    = $fwin;
+  $screen{tooltips}  = $fwin->{tooltips};
+  $screen{area} = $area;
+  $screen{ITEMS}     = ();
+  $screen{name}      = $name;
+  $screen{filename}  = $filename;
+  Optikus::Watch::idle(50);
+  Optikus::Watch::enable(0);
+  parse_simple_xml($filename, \%screen, \&handle_xml_elem);
+  Optikus::Watch::enable(1);
+  Optikus::Watch::idle(50);
+  bg_set(\%screen, $area, $screen{background});
+  my ($fwidth, $fheight) = ($screen{width}, $screen{height});
+  $fwidth = 640 unless defined $fwidth;
+  $fheight = 480 unless defined $fheight;
+  $fwin->hide;
+  $fwin->set_gravity("center");
+  if ($open_qty > 0) {
+    my ($t_w, $cx, $cy, $t_m) = Gtk2::Gdk->get_default_root_window->get_pointer;
+    $cx += $fwidth/2 while $cx < $fwidth/2;
+    $cy += $fheight/2 while $cy < $fheight/2;
+    $cx -= $fwidth/2;
+    $cy -= $fheight/2;
+    $fwin->move ($cx, $cy);
+  } else {
+    $fwin->set_position("center");
+  }
+  my ($wx, $wy, $ww, $wh, $wd) = $fwin->window->get_geometry;
+  my $rw = $fwidth + $ww - $scroll->allocation->width + 5;
+  my $rh = $fheight + $wh - $scroll->allocation->height + 5;
+  $fwin->set_default_size($rw, $rh);
+  $fwin->resize($rw, $rh);
+  $fwin->signal_connect(button_press_event => \&button_press_handler, \%screen);
+  $fwin->show;
+  Optikus::Canvas::Util::set_window_icon($fwin, "kpic/frame_image.png");
+  $screens{$name} = \%screen;
+  $screens{$filename} = \%screen;
+  $open_qty++;
+  olog "opened screen [$name]\n";
+  return \%screen;
+}
+
+
+sub handle_xml_elem
+{
+  my ($file, $screen, $tag, $attr) = @_;
+  return 0 unless $tag eq "widget" or $tag eq "window";
+  my %attr = %{$attr};
+  if ($tag eq "widget")
+  {
+    $attr{class} = "" unless defined $attr{class};
+    $attr{type} = "" unless defined $attr{type};
+    my $clas = join("::", "Optikus", "Canvas", "Widget",
+                    $attr{class}, $attr{type});
+    $clas =~ s/:+$//;
+    $attr{_parent} = $screen->{area};
+    $attr{_window} = $screen->{window};
+    $attr{_screen} = $screen;
+    my $item = new $clas (%attr);
+    my $widget = $item->{WIDGET};
+    #print "created item=[$item] x=$item->{posx} y=$item->{posy}\n";
+    $screen->{area}->put($widget, $item->{posx}, $item->{posy});
+    $widget->signal_connect(button_press_event => \&button_press_handler, $screen);
+    $widget->show_all;
+    if (defined($screen->{textfont}) || defined($screen->{textcolor})) {
+      $item->update_appearance(0, font => $screen->{textfont},
+                               color => $screen->{textcolor});
+    }
+    unshift @{$screen->{ITEMS}}, $item;
+  }
+  if ($tag eq "window")
+  {
+    for ("width", "height", "textfont", "textcolor", "background") {
+      $screen->{$_} = $attr{$_};
+    }
+  }
+  return 1;
+}
+
+sub button_press_handler
+{
+  my ($widget, $event, $screen) = @_;
+  close_popups();
+  return 0 if $event->time == $last_press_time;
+  $last_press_time = $event->time;
+  my ($x, $y) = $event->coords;
+  return unless $event->button == 3;
+  my $wrecord = find_widget_by_xy($event->x, $event->y,
+                                  $widget, $area, @{$screen->{ITEMS}});
+  unless (defined $wrecord) {
+    olog "widget not found\n";
+    return 1;
+  }
+  olog "widget_record=$wrecord\n";
+  create_popup($wrecord);
+  return 1;
+}
+
+sub close_popups
+{
+  $popup_menu->destroy if defined $popup_menu;
+  undef $popup_menu;
+}
+
+sub create_popup
+{
+  my $item = shift;
+  my $var;
+  close_popups;
+  $var = $item->{VARNAME}->[0];
+  return unless length($var) > 0;
+  $popup_menu = Gtk2::Window->new("toplevel");
+  $popup_menu->set_position("mouse");
+  $popup_menu->set_title("change");
+  
+  my $vbox = Gtk2::VBox->new(0, 5);
+  $popup_menu->add($vbox);
+  my $hbox = Gtk2::HBox->new(0, 0);
+  $vbox->pack_start($hbox, 0, 1, 0);
+  my $label = Gtk2::Label->new($var);
+  $hbox->pack_start($label, 0, 1, 0);
+  my $entry = Gtk2::Entry->new;
+  $entry->set_text($item->{VAR}->[0]);
+  $hbox->pack_start($entry, 0, 1, 0);
+  $entry->signal_connect(activate => sub {
+    close_popups;
+    $item->{VAR}->[0] = $entry->get_text;
+  });
+  $hbox = Gtk2::HBox->new(0, 0);
+  $vbox->pack_start($hbox, 0, 1, 0);
+  my $button = Gtk2::Button->new("OK");
+  $hbox->pack_start($button, 1, 1, 1);
+  $button->signal_connect(clicked => sub {
+    close_popups;
+    $item->{VAR}->[0] = $entry->get_text;
+  });
+  $button->can_default(1);
+  $button->has_default(1);
+  $button = Gtk2::Button->new("Cancel");
+  $hbox->pack_start($button, 1, 1, 1);
+  $button->signal_connect(clicked => sub {
+    close_popups;
+  });
+  $popup_menu->show_all;
+}
+
+my @order = ();
+
+sub order
+{
+  my $name = shift;
+  return 10001 unless defined $name;
+  for my $num (0..$#order) {
+    return $num + 1 if $order[$num] eq $name;
+  }
+  return 10000;
+}
+
+sub create_flist
+{
+  my %truenames;
+  if (open(FDL, $display_list_file)) {
+    while (<FDL>) {
+      next unless /^(\S+)\s+(\S.*)\s*$/;
+      $truenames{$1} = $2;
+      push @order, $1;
+    }
+    close FDL;
+  }
+  my $cwd = `pwd`;
+  chdir $scr_home;
+  my @flist = glob("*.osx");
+  chdir $cwd;
+  $listwin = Gtk2::Window->new("toplevel");
+  $listwin->set_title("Optikus Screen List");
+  $listwin->{tooltips} = Gtk2::Tooltips->new;
+  $listwin->signal_connect(destroy => sub { Gtk2->main_quit; });
+  my ($winbox, $scroll, $vbox, $hbox, $tools);
+  $winbox = Gtk2::VBox->new(0, 0);
+  $listwin->add($winbox);
+  $scroll = Gtk2::ScrolledWindow->new;
+  $winbox->add($scroll);
+  $scroll->set_border_width(5);
+  $scroll->set_policy("automatic", "automatic");
+  $vbox = new Gtk2::VBox(0, 0);
+  $scroll->add_with_viewport($vbox);
+  for my $file (sort {order($a) <=> order($b)} @flist)
+  {
+    my $title = defined $truenames{$file} ? $truenames{$file} : $file;
+    my $label = Gtk2::Label->new($title);
+    my $cmark = Gtk2::Image->new_from_pixbuf(create_pic("tools/ar_r.png"));
+    my $hbox = new Gtk2::HBox(0, 0);
+    $hbox->pack_start($cmark, 0, 0, 0);
+    $hbox->pack_start($label, 0, 0, 0);
+    my $button = new Gtk2::ToggleButton();
+    $button->add($hbox);
+    $listwin->{tooltips}->set_tip($button, $file, undef);
+    $button->signal_connect(clicked => sub { toggle_screen($file); });
+    $vbox->pack_start($button, 0, 1, 0);
+    $toggles{$file} = $button;
+  }
+  $hbox = Gtk2::HBox->new(0,0);
+  $tools = Gtk2::Toolbar->new;
+  $hbox->pack_start($tools, 0, 0, 0);
+  $tools->set_style("icons");
+  create_tool($tools,"Hide screen list","kpic/view_remove.png",
+              sub { toggle_screen_list(0); });
+  create_tool($tools,"Open root screen","tools/tree.png",
+              sub { activate_screen($root_display); });
+  $tools = Gtk2::Toolbar->new;
+  $hbox->pack_end($tools, 0, 0, 0);
+  $tools->set_style("icons");
+  create_tool($tools,"Quit viewer","kpic/exit.png",
+              sub { quit_screens(); });
+  $winbox->pack_end($hbox, 0, 0, 0);
+  $listwin->set_default_size(300, 600);
+  $listwin->show_all;
+  Optikus::Canvas::Util::set_window_icon($listwin, "kpic/frame_spreadsheet.png");
+}
+
+sub quit_screens
+{
+  run_dialog("Quit all screens ?", "Quit all screens ?",
+             sub { Gtk2->main_quit; });
+  return 0;
+}

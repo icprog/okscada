@@ -32,25 +32,31 @@
 #include <qpushbutton.h>
 #include <qapplication.h>
 #include <qlayout.h>
+#include <qdir.h>
+
+
+class QSignalMapper;
 
 
 class OQPixmap : public QPixmap
 {
 public:
-	OQPixmap(const QString& file);
+	OQPixmap(const QString& file, bool substitute = true);
 };
 
 
 class OQPushButton : public QPushButton
 {
 public:
-	OQPushButton(const char *text, const char *icon = 0, QWidget *parent = 0);
+	OQPushButton(const QString& text, const QString& icon = 0,
+				QWidget *parent = 0);
 };
 
 
 class OQSubjectBox : public OQPushButton
 {
 	Q_OBJECT
+
 public:
 	OQSubjectBox(const char *name, QWidget *parent, QBoxLayout *layout = 0);
 	void setState(bool online);
@@ -59,6 +65,7 @@ public:
 								QWidget *group, QBoxLayout *layout = 0);
 	static void updateGroupWidget(const QString& subject, const QString& state,
 								QWidget *group, QBoxLayout *layout = 0);
+
 protected slots:
 	void subjectClicked();
 };
@@ -71,33 +78,53 @@ public:
 };
 
 
-class OQApplication : public QApplication
+class OQApp : public QApplication
 {
 	Q_OBJECT
 
 public:
-	OQApplication(const char *client_name, int &argc, char **argv);
-	void setQuitFilter(OQuitFilter *filter)		{ quitFilter = filter; }
+	OQApp(const QString& client_name, int &argc, char **argv,
+			const QString& theme = "simple");
+	virtual ~OQApp();
 
-private:
-	OQuitFilter *quitFilter;
+	void quitForce();
+	void setQuitFilter(OQuitFilter *filter)		{ quit_filter = filter; }
+
+	int runScript(const QString& script, const QString& lang);
+	bool killScript(int pid);
+	void killAllScripts();
+
+	static void setTheme(const QString& theme);
+	static void msleep(int msec, bool process_events = true);
+
+signals:
+	void scriptFinished(int pid, int exit_status);
 
 public slots:
 	virtual void quit();
 
-public:
-	static OQApplication* oqApp;
+protected slots:
+	void scriptStartSlot(const QString& name);
+	void scriptExitSlot(const QString& name);
 
-	// FIXME: these must be qDir`s
-	static QString root_dir;
-	static QString forms_home;
-	static QString share_home;
-	static QString pic_home;
-	static QString fmt_home;
-	static QString etc_home;
-	static QString bin_home;
-	static QString log_home;
-	static QString log_file;
+protected:
+	OQuitFilter *quit_filter;
+	QSignalMapper *sm_start;
+	QSignalMapper *sm_exit;
+
+public:
+	static OQApp * oqApp;
+
+	static QDir  root;
+	static QDir  share;
+	static QDir  pics;
+	static QDir  screens;
+	static QDir  etc;
+	static QDir  bin;
+	static QDir  var;
+	static QDir  logs;
+	static QFile log;
+	static bool  log_to_stdout;
 };
 
 #endif // OQCOMMON_H

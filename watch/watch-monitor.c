@@ -1247,8 +1247,11 @@ owatchRemoveAllMonitors()
 		return ERROR;
 	}
 	for (i = 0; i < owatch_mon_qty; i++) {
-		if (owatch_mons[i].mon_p)
-			owatchRemoveMonitorByRef(owatch_mons[i].mon_p);
+		OwatchMonitorRecord_t *pmon = owatch_mons[i].mon_p;
+		if (NULL != pmon) {
+			pmon->ref_count = 1;
+			owatchRemoveMonitorByRef(pmon);
+		}
 	}
 	oxfree(owatch_mons);
 	owatch_mons = NULL;

@@ -111,10 +111,10 @@ OQMap::timerEvent(QTimerEvent *)
 		return;
 	got_data = false;
 
-	bool err_x, err_y;
-	float map_x = watch.getFloat("map_x", 0, &err_x);
-	float map_y = watch.getFloat("map_y", 0, &err_y);
-	if (err_x || err_y)
+	bool ok_x, ok_y;
+	float map_x = watch.readFloat("map_x", 0, &ok_x);
+	float map_y = watch.readFloat("map_y", 0, &ok_y);
+	if (!ok_x || !ok_y)
 		return;
 
 	pic = bg;
@@ -136,7 +136,7 @@ OQMap::timerEvent(QTimerEvent *)
 	p.drawPixmap(loc - QPoint(star.width() / 2, star.height() / 2), star);
 	QString msg;
 
-	time_t t = (time_t) watch.getULong("map_time");
+	time_t t = (time_t) watch.readULong("map_time");
 	bottomTime(p, t, 1, 1, NULL);
 	bottomTime(p, t, 1, 2, "GMT");
 	bottomTime(p, t, 1, 3, "CST6CDT");
@@ -148,7 +148,7 @@ OQMap::timerEvent(QTimerEvent *)
 
 	bottomMsg(p, 3, 1, fmt_lat_long(msg, map_x));
 	bottomMsg(p, 3, 2, fmt_lat_long(msg, map_y));
-	bottomMsg(p, 3, 3, msg.sprintf(" %6.3f", watch.getFloat("map_h")));
+	bottomMsg(p, 3, 3, msg.sprintf(" %6.3f", watch.readFloat("map_h")));
 
 	p.end();
 	setErasePixmap(pic);
@@ -205,7 +205,7 @@ OQMap::bottomTime(QPainter& p, const time_t t, int c, int r, const char *tz)
 int
 main(int argc, char **argv)
 {
-	OQApplication app("oqmap", argc, argv);
+	OQApp app("oqmap", argc, argv);
 	OQMap win;
 	app.setMainWidget(&win);
 	win.setCaption("Optikus Map");

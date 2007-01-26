@@ -97,7 +97,7 @@ owatchWriteAs (const char *desc, oval_t * val_ptr, int timeout, int *err_ptr)
 	real_val.time = 0;
 	real_val.undef = 0;
 
-	if (owatchConvertValue(val_ptr, &real_val, str, len) == ERROR) {
+	if (owatchConvertValue(val_ptr, &real_val, str, len) != OK) {
 		/* FIXME: set *err_ptr */
 		return ERROR;
 	}

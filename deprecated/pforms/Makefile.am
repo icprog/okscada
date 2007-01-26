@@ -3,7 +3,7 @@
 
 EXTRA_DIST = $(PFORMS_PERLMOD)
 
-dist_bin_SCRIPTS = opdock opedit opforms opecho opmap oplogs opmsg
+dist_bin_SCRIPTS = opdock opedit opscreens opecho opmap oplogs opmsg
 
 dist_sysconf_DATA = cmsg.lst cmsg.hash
 
@@ -41,37 +41,37 @@ clean-local:
 
 PFORMS_PM_MAKE = perl/Changes perl/README perl/MANIFEST perl/Makefile.PL
 
-PFORMS_PM_UTIL = perl/lib/Optikus/Forms/Util.pm
+PFORMS_PM_UTIL = perl/lib/Optikus/Canvas/Util.pm
 
 PFORMS_PM_WIDGETS = \
-	perl/lib/Optikus/Forms/Widget.pm \
-	perl/lib/Optikus/Forms/WidgetActive.pm \
-	perl/lib/Optikus/Forms/WidgetPeriodic.pm \
-	perl/lib/Optikus/Forms/Widget/Label.pm \
-	perl/lib/Optikus/Forms/Widget/String.pm \
-	perl/lib/Optikus/Forms/Widget/MultiString.pm \
-	perl/lib/Optikus/Forms/Widget/Pixmap.pm \
-	perl/lib/Optikus/Forms/Widget/LED.pm \
-	perl/lib/Optikus/Forms/Widget/Bar.pm \
-	perl/lib/Optikus/Forms/Widget/Anim.pm \
-	perl/lib/Optikus/Forms/Widget/ManoMeter.pm \
-	perl/lib/Optikus/Forms/Widget/Curve.pm \
-	perl/lib/Optikus/Forms/Widget/Control.pm \
-	perl/lib/Optikus/Forms/Widget/Control/Runner.pm \
-	perl/lib/Optikus/Forms/Widget/Control/Offnominal.pm \
-	perl/lib/Optikus/Forms/Widget/Control/FormLink.pm \
-	perl/lib/Optikus/Forms/Widget/Toggle.pm \
-	perl/lib/Optikus/Forms/Widget/Toggle/Button.pm \
-	perl/lib/Optikus/Forms/Widget/Toggle/Switch.pm \
-	perl/lib/Optikus/Forms/Widget/Range.pm \
-	perl/lib/Optikus/Forms/Widget/Range/Dial.pm \
-	perl/lib/Optikus/Forms/Widget/Range/Ruler.pm \
-	perl/lib/Optikus/Forms/Widget/Custom.pm \
-	perl/lib/Optikus/Forms/Widget/Custom/SolArray.pm \
-	perl/lib/Optikus/Forms/Widget/Meter.pm \
-	perl/lib/Optikus/Forms/Widget/Meter/RoundTank.pm \
-	perl/lib/Optikus/Forms/Widget/Meter/Volume.pm \
-	perl/lib/Optikus/Forms/Widget/Meter/ThermoMeter.pm \
-	perl/lib/Optikus/Forms/Widget/Meter/SmallTank.pm \
-	perl/lib/Optikus/Forms/Widget/Meter/BigTank.pm
+	perl/lib/Optikus/Canvas/Widget.pm \
+	perl/lib/Optikus/Canvas/DataWidget.pm \
+	perl/lib/Optikus/Canvas/TimerWidget.pm \
+	perl/lib/Optikus/Canvas/Widget/Label.pm \
+	perl/lib/Optikus/Canvas/Widget/String.pm \
+	perl/lib/Optikus/Canvas/Widget/MultiString.pm \
+	perl/lib/Optikus/Canvas/Widget/Pixmap.pm \
+	perl/lib/Optikus/Canvas/Widget/LED.pm \
+	perl/lib/Optikus/Canvas/Widget/Bar.pm \
+	perl/lib/Optikus/Canvas/Widget/Anim.pm \
+	perl/lib/Optikus/Canvas/Widget/ManoMeter.pm \
+	perl/lib/Optikus/Canvas/Widget/Curve.pm \
+	perl/lib/Optikus/Canvas/Widget/Control.pm \
+	perl/lib/Optikus/Canvas/Widget/Control/Runner.pm \
+	perl/lib/Optikus/Canvas/Widget/Control/Offnominal.pm \
+	perl/lib/Optikus/Canvas/Widget/Control/Link.pm \
+	perl/lib/Optikus/Canvas/Widget/Toggle.pm \
+	perl/lib/Optikus/Canvas/Widget/Toggle/Button.pm \
+	perl/lib/Optikus/Canvas/Widget/Toggle/Switch.pm \
+	perl/lib/Optikus/Canvas/Widget/Range.pm \
+	perl/lib/Optikus/Canvas/Widget/Range/Dial.pm \
+	perl/lib/Optikus/Canvas/Widget/Range/Ruler.pm \
+	perl/lib/Optikus/Canvas/Widget/Custom.pm \
+	perl/lib/Optikus/Canvas/Widget/Custom/SolArray.pm \
+	perl/lib/Optikus/Canvas/Widget/Meter.pm \
+	perl/lib/Optikus/Canvas/Widget/Meter/RoundTank.pm \
+	perl/lib/Optikus/Canvas/Widget/Meter/Volume.pm \
+	perl/lib/Optikus/Canvas/Widget/Meter/ThermoMeter.pm \
+	perl/lib/Optikus/Canvas/Widget/Meter/SmallTank.pm \
+	perl/lib/Optikus/Canvas/Widget/Meter/BigTank.pm
 

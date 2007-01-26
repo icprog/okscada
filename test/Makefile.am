@@ -5,6 +5,8 @@
 
 dist_sysconf_DATA = ocommon.ini odomain.ini
 
+dist_bin_SCRIPTS = oscan ocontrol sample-script
+
 bin_PROGRAMS = sample-subject sample-echo
 
 sample_subject_SOURCES = sample-subject.c
@@ -18,8 +20,6 @@ sample_echo_SOURCES = sample-echo.c
 sample_echo_LDADD = $(top_builddir)/watch/libowatch.a \
 		$(top_builddir)/util/liboutil.a \
 		-lreadline -lncurses -lpthread -ldl
-
-dist_bin_SCRIPTS = oscan ocontrol
 
 install-exec-hook:
 	$(mkdir_p) $(localstatedir)/log

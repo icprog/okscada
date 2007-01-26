@@ -107,8 +107,7 @@ oxrecalloc(void *optr, size_t nsize, size_t osize)
 OX_INLINE void
 oxfree(void *ptr)
 {
-	if (NULL != ptr)
-		free(ptr);
+	free(ptr);
 }
 
 OX_INLINE char *

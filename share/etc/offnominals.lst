@@ -1,0 +1,2 @@
+fail #1 ==> This is the 1st sample failure.\nIt switches between the upper bulbs.
+fail #2 ==> This is the 2nd sample failure.\nIt switches between the bottom bulbs.

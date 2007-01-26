@@ -34,15 +34,15 @@ use Gtk2;
 use utf8;
 use open ':utf8';
 
-use Optikus::Forms::Widget;
-use Optikus::Forms::Util;
+use Optikus::Canvas::Widget;
+use Optikus::Canvas::Util;
 
 #
 #    Variables
 #
 
-my $temp = ".temp.oxf";
-my $form_name;
+my $temp = ".temp.osx";
+my $screen_name;
 my $changed = 0;
 
 my ($fwin, $area, $statusbar, $scroll);
@@ -71,10 +71,10 @@ my ($cursor_normal, $cursor_resize, $cursor_move);
 my @main_menu_items =
 (
  [ "/_File",                   undef, undef, 0, "<Branch>" ],
- [ "/_File/_New",       "<control>N",  sub { clear_form(); },            0  ],
- [ "/_File/_Open",      "<control>O",  sub { open_form("?"); },          0  ],
- [ "/_File/_Save",      "<control>S",  sub { save_form($form_name); }, 0  ],
- [ "/_File/Save _as",   undef,         sub { save_form("?"); },          0  ],
+ [ "/_File/_New",       "<control>N",  sub { clear_screen(); },            0  ],
+ [ "/_File/_Open",      "<control>O",  sub { open_screen("?"); },          0  ],
+ [ "/_File/_Save",      "<control>S",  sub { save_screen($screen_name); }, 0  ],
+ [ "/_File/Save _as",   undef,         sub { save_screen("?"); },          0  ],
  [ "/_File/_Quit",      "<control>Q",  \&quit_editor,                    0  ],
  [ "/_Create",                    undef, undef, 0, "<Branch>" ],
  [ "/_Create/_Label",             undef, undef, 0, "<Branch>" ],
@@ -102,7 +102,7 @@ my @main_menu_items =
  [ "/_Create/_Control", undef, undef, 0, "<Branch>" ],
  [ "/_Create/_Control/_Runner",      undef, sub { widget_new("Control::Runner"); }, 0 ],
  [ "/_Create/_Control/_Offnominal",  undef, sub { widget_new("Control::Offnominal"); }, 0 ],
- [ "/_Create/_Control/_Form Link",   undef, sub { widget_new("Control::FormLink"); }, 0 ],
+ [ "/_Create/_Control/_Link",        undef, sub { widget_new("Control::Link"); }, 0 ],
  [ "/_Options", undef, undef, 0, "<Branch>" ],
  [ "/_Options/_Background image", undef, sub { bg_set($area, "?"); }, 0 ],
  [ "/_Options/Grid : _1",  undef, sub { set_snap(1, 1); }, 0 ],
@@ -110,7 +110,7 @@ my @main_menu_items =
  [ "/_Options/Grid : _8",  undef, sub { set_snap(8, 8); }, 0 ],
  [ "/_Options/Grid : 1_6", undef, sub { set_snap(16, 16); }, 0 ],
  [ "/_Help", undef, undef, 0, "<LastBranch>" ],
- [ "/_Help/_About", undef, sub { print "this is form\n"; }, 0 ]
+ [ "/_Help/_About", undef, sub { print "Optikus Screen Editor\n"; }, 0 ]
 );
 
 #
@@ -126,30 +126,30 @@ sub update_status
 
 sub set_status_widget
 {
-  my $ui = shift;
+  my $item = shift;
   $status_widget = "";
-  return unless defined($ui) or defined($selected_widget);
-  if (not defined $ui) {
+  return unless defined($item) or defined($selected_widget);
+  if (not defined $item) {
     $status_widget .= "* ";
-  } elsif ($ui eq $selected_widget) {
+  } elsif ($item eq $selected_widget) {
     $status_widget .= "+ ";
   } else {
     $status_widget .= "- ";
   }
-  $ui = $selected_widget unless defined $ui;
-  my $clas = ref($ui);
-  $clas =~ s{^Optikus::Forms::Widget::}{};
+  $item = $selected_widget unless defined $item;
+  my $clas = ref($item);
+  $clas =~ s{^Optikus::Canvas::Widget::}{};
   $clas =~ s{::}{/};
-  $status_widget .= "$clas ($ui->{posx}x$ui->{posy})";
-  my $var = $ui->{var};
+  $status_widget .= "$clas ($item->{posx}x$item->{posy})";
+  my $var = $item->{var};
   $status_widget .= " {$var}" if defined $var;
 }
 
 sub set_status_xy
 {
-  my ($x, $y, $ui) = @_;
+  my ($x, $y, $item) = @_;
   $status_xy = sprintf("%-3d x %-3d", $x, $y);
-  set_status_widget($ui);
+  set_status_widget($item);
   update_status();
 }
 
@@ -161,8 +161,8 @@ sub set_status_msg
 
 sub select_widget
 {
-  my $ui = shift;
-  set_status_widget($selected_widget = $ui);
+  my $item = shift;
+  set_status_widget($selected_widget = $item);
   update_status();
 }
 
@@ -170,7 +170,7 @@ sub select_widget
 #    Main Window
 #
 
-sub create_form
+sub create_screen
 {
   my ($win, $tooltips, $accel_group, $item_factory,
       $winbox, $menubar, $tools, $tscroll);
@@ -194,14 +194,14 @@ sub create_form
   $tools->set_style("icons");
   $tools->set_size_request(40,-1);
   $winbox->pack_start($tools, 0, 0, 0);
-  create_tool($tools,"clear form","kpic/filenew.png",
-              sub { clear_form(); });
-  create_tool($tools,"open form","kpic/fileopen.png",
-              sub { open_form("?"); });
-  create_tool($tools,"save form","kpic/filesave.png",
-              sub { save_form($form_name); });
-  create_tool($tools,"save form","kpic/filesaveas.png",
-              sub { save_form("?"); });
+  create_tool($tools,"clear screen","kpic/filenew.png",
+              sub { clear_screen(); });
+  create_tool($tools,"open screen","kpic/fileopen.png",
+              sub { open_screen("?"); });
+  create_tool($tools,"save screen","kpic/filesave.png",
+              sub { save_screen($screen_name); });
+  create_tool($tools,"save screen as...","kpic/filesaveas.png",
+              sub { save_screen("?"); });
   $tools->append_space;
   create_tool($tools,"edit item","kpic/edit.png",
               sub { widget_edit($selected_widget); });
@@ -224,9 +224,9 @@ sub create_form
   create_tool($tools,"snap up","kpic/fontsizeup.png",
               sub { snap_change(1); });
   create_tool($tools,"bring to back","kpic/2downarrow.png",
-              sub { ui_bring_to($selected_widget,-1); });
+              sub { widget_elevate($selected_widget,-1); });
   create_tool($tools,"bring to front","kpic/2uparrow.png",
-              sub { ui_bring_to($selected_widget,1); });
+              sub { widget_elevate($selected_widget,1); });
   create_tool($tools,"resize item","kpic/move.png",
               sub { start_resize($selected_widget); });
   create_tool($tools,"set background","kpic/imagegallery.png",
@@ -257,17 +257,17 @@ sub create_form
 }
 
 #
-#    Mouse Operatuions
+#    Mouse Operations
 #
 
 sub start_resize
 {
-  my $ui = shift;
-  return unless defined $ui;
+  my $item = shift;
+  return unless defined $item;
   $area->window->set_cursor($cursor_resize);
-  $resized_widget = $ui;
-  $ui->{save_width} = $ui->{WIDGET}->allocation->width;
-  $ui->{save_height} = $ui->{WIDGET}->allocation->height;
+  $resized_widget = $item;
+  $item->{save_width} = $item->{WIDGET}->allocation->width;
+  $item->{save_height} = $item->{WIDGET}->allocation->height;
 }
 
 sub button_press_handler
@@ -275,7 +275,8 @@ sub button_press_handler
   my ($widget, $event, $param) = @_;
   return 0 if $event->time == $last_press_time;
   $last_press_time = $event->time;
-  my $ui = find_widget_by_xy($event->x, $event->y, $widget, $area->parent, @el_list);
+  my $item = find_widget_by_xy($event->x, $event->y, $widget,
+                               $area->parent, @el_list);
   close_popups();
   if (defined $resized_widget)
   {
@@ -289,7 +290,7 @@ sub button_press_handler
     undef $resized_widget;
     return;
   }
-  unless (defined $ui)
+  unless (defined $item)
   {
     select_widget(undef);
     if ($event->button == 3)  {
@@ -300,18 +301,18 @@ sub button_press_handler
   }
   if ($event->button == 1)
   {
-    $dragged_widget = $ui;
+    $dragged_widget = $item;
     my ($t_w, $x, $y, $t_m) = Gtk2::Gdk->get_default_root_window->get_pointer;
     ($drag_x0, $drag_y0) = ($x, $y);
-    ($drag_xc, $drag_yc) = ($ui->{posx}, $ui->{posy});
-    $ui->{WIDGET}->set_state("prelight");
-    select_widget($ui);
+    ($drag_xc, $drag_yc) = ($item->{posx}, $item->{posy});
+    $item->{WIDGET}->set_state("prelight");
+    select_widget($item);
     $area->window->set_cursor($cursor_move);
     return 1;
   }
   if ($event->button == 3) {
     select_widget(undef);
-    ui_operations($ui);
+    widget_menu($item);
     return 1;
   }
   return 0;
@@ -357,9 +358,10 @@ sub motion_handler
   return 0 if $event->time == $last_motion_time;
   $last_motion_time = $event->time;
   my ($x, $y) = recalc_xy($event->x, $event->y, $widget, $area->parent);
-  my $ui = find_widget_by_xy($event->x, $event->y, $widget, $area->parent, @el_list);
-  #print "status $widget ($x x $y) $ui\n";
-  set_status_xy($x, $y, $ui);
+  my $item = find_widget_by_xy($event->x, $event->y, $widget,
+                               $area->parent, @el_list);
+  #print "status $widget ($x x $y) $item\n";
+  set_status_xy($x, $y, $item);
   #print STDERR "+";
   if (defined $dragged_widget)
   {
@@ -407,9 +409,9 @@ sub bg_set
   }
   $rcstyle->bg_pixmap_name("normal", $name);
   $area->parent->modify_style($rcstyle) if defined $area;
-  foreach my $ui (@el_list) {
-    next unless $ui->{want_bg};
-    $ui->{WIDGET}->modify_style($rcstyle);
+  foreach my $item (@el_list) {
+    next unless $item->{want_bg};
+    $item->{WIDGET}->modify_style($rcstyle);
   }
   bg_refresh();
   $changed = 1;
@@ -505,13 +507,13 @@ sub align_all
   my ($gx, $gy) = @_;
   print "in align_all($gx, $gy)\n";
   $area->hide;
-  for my $ui (@el_list)
+  for my $item (@el_list)
   {
-    my $w = $ui->{WIDGET};
-    my $x = $ui->{posx};
-    my $y = $ui->{posy};
+    my $w = $item->{WIDGET};
+    my $x = $item->{posx};
+    my $y = $item->{posy};
     print "\t ($x, $y) -> ";
-    $area->move($ui->{WIDGET}, 0, 0);
+    $area->move($item->{WIDGET}, 0, 0);
 
     my $rx = $x % $gx;
     my $ry = $y % $gy;
@@ -526,8 +528,8 @@ sub align_all
     } else {
       $y += ($gy - $ry);
     };
-    $ui->{posx} = $x;	
-    $ui->{posy} = $y;	
+    $item->{posx} = $x;	
+    $item->{posy} = $y;	
   };	
   $area->show_all;
   $changed = 1;
@@ -577,8 +579,8 @@ sub set_text_font
 {
   create_font_sel(undef, $text_font, sub {
     $text_font = shift;
-    for my $ui (@el_list) {
-      $ui->update_appearance(0, font => $text_font, color => $text_color);
+    for my $item (@el_list) {
+      $item->update_appearance(0, font => $text_font, color => $text_color);
     }
   });
 }
@@ -587,134 +589,134 @@ sub set_text_color
 {
   create_color_sel(undef, $text_color, sub {
     $text_color = shift;
-    for my $ui (@el_list) {
-      $ui->update_appearance(0, font => $text_font, color => $text_color);
+    for my $item (@el_list) {
+      $item->update_appearance(0, font => $text_font, color => $text_color);
     }
   });
 }
 
 #
-#    Widget Operatuions
+#    Widget Operations
 #
 
 sub widget_new
 {
   my $clas = shift;
-  my $clas = "Optikus::Forms::Widget::". $clas;
+  my $clas = "Optikus::Canvas::Widget::". $clas;
   my @attr = $clas->get_attr_list;
   edit_attr_list($clas, \@attr, sub {
     my $attr = shift;
     $attr->{_parent} = $area;
     $attr->{_window} = $fwin;
     $attr->{_cantfocus} = "TRUE";
-    ui_create($clas, %$attr);
+    widget_create($clas, %$attr);
   });
 }
 
 sub widget_delete
 {
-  my ($ui, $confirm) = @_;
-  return unless defined $ui;
+  my ($item, $confirm) = @_;
+  return unless defined $item;
   if (length($confirm) > 0) {
     run_dialog("Confirm deletion", "Are you sure to delete item ?",
-               sub { widget_delete($ui); });
+               sub { widget_delete($item); });
     return;
   }
-  #print "deleting $ui\n";
-  delete $el_hash{$ui};
-  undef $el_hash{$ui};
+  #print "deleting $item\n";
+  delete $el_hash{$item};
+  undef $el_hash{$item};
   for my $i (0.. $#el_list) {
-    if ($ui eq $el_list[$i]) {
+    if ($item eq $el_list[$i]) {
       splice @el_list, $i, 1;
       last;
     }
   }
-  $ui->{WIDGET}->destroy;
+  $item->{WIDGET}->destroy;
   $changed = 1;
   return 1;
 }
 
 sub widget_edit
 {
-  my $ui = shift;
-  return unless defined $ui;
-  my $clas = ref $ui;
-  my @attrlist = $ui->get_attr_list;
-  for my $a (@attrlist) { $a->{value} = $ui->{$a->{attr}};  }
+  my $item = shift;
+  return unless defined $item;
+  my $clas = ref $item;
+  my @attrlist = $item->get_attr_list;
+  for my $a (@attrlist) { $a->{value} = $item->{$a->{attr}};  }
   my %_attr = ();
-  for my $a (keys %$ui) { $_attr{$a} = $ui->{$a} if /^_/; };
+  for my $a (keys %$item) { $_attr{$a} = $item->{$a} if /^_/; };
   edit_attr_list($clas, \@attrlist, sub {
     my $attr = shift;
-    widget_delete($ui);
+    widget_delete($item);
     for my $a (keys(%_attr)) { $attr->{$a} = $_attr{$a}; }
-    ui_create($clas, %$attr);
+    widget_create($clas, %$attr);
   });
 }
 
 sub widget_copy
 {
-  my $ui = shift;
-  return unless defined $ui;
-  my $clas = ref $ui;
-  my @attrlist = $ui->get_attr_list;
+  my $item = shift;
+  return unless defined $item;
+  my $clas = ref $item;
+  my @attrlist = $item->get_attr_list;
   for my $a (@attrlist) {
-    $a->{value} = $ui->{$a->{attr}};
+    $a->{value} = $item->{$a->{attr}};
     $a->{value} += 20 if $a->{attr} eq "posx" or $a->{attr} eq "posy";
   }
   my %_attr = ();
-  for my $a (keys %$ui) { $_attr{$a} = $ui->{$a} if /^_/; };
+  for my $a (keys %$item) { $_attr{$a} = $item->{$a} if /^_/; };
   edit_attr_list($clas, \@attrlist, sub {
     my $attr = shift;
     for my $a (keys(%_attr)) { $attr->{$a} = $_attr{$a}; }
-    ui_create($clas, %$attr);
+    widget_create($clas, %$attr);
   });
 }
 
-sub ui_create
+sub widget_create
 {
   my ($clas, %attr) = @_;
   $attr{_window} = $fwin;
   $attr{_area} = $area;
-  my $ui = new $clas(%attr);
-  my $widget = $ui->{WIDGET};
-  return unless defined $ui and defined $widget;
-  $el_hash{$ui} = $ui;
-  unshift @el_list, $ui;
-  $ui->{posx} = 10 unless defined $ui->{posx};
-  $ui->{posy} = 10 unless defined $ui->{posy};
-  $area->put($widget, $ui->{posx}, $ui->{posy});
+  my $item = new $clas(%attr);
+  my $widget = $item->{WIDGET};
+  return unless defined $item and defined $widget;
+  $el_hash{$item} = $item;
+  unshift @el_list, $item;
+  $item->{posx} = 10 unless defined $item->{posx};
+  $item->{posy} = 10 unless defined $item->{posy};
+  $area->put($widget, $item->{posx}, $item->{posy});
   $widget->realize;
   $widget->show_all;
   if (defined($text_font) or defined($text_color)) {
-    $ui->update_appearance (0, font => $text_font, color => $text_color);
+    $item->update_appearance (0, font => $text_font, color => $text_color);
   }
   $widget->can_focus(0);
   $widget->add_events([qw[button_press_mask pointer_motion_mask button_release_mask]]);
-  $widget->signal_connect(button_press_event => \&button_press_handler, $ui);
-  $widget->signal_connect(button_release_event => \&button_release_handler, $ui);
-  $widget->signal_connect(motion_notify_event => \&motion_handler, $ui);
+  $widget->signal_connect(button_press_event => \&button_press_handler, $item);
+  $widget->signal_connect(button_release_event => \&button_release_handler, $item);
+  $widget->signal_connect(motion_notify_event => \&motion_handler, $item);
   $changed = 1;
 }
 
-sub ui_bring_to
+sub widget_elevate
 {
-  my ($ui, $dir) = @_;
-  return unless defined $ui;
-  my $widget = $ui->{WIDGET};
+  my ($item, $dir) = @_;
+  return unless defined $item;
+  my $widget = $item->{WIDGET};
   return if $dir == 0;
-  return if $dir > 0 and $ui eq $el_list[0];
-  return if $dir < 0 and $ui eq $el_list[$#el_list];
+  return if $dir > 0 and $item eq $el_list[0];
+  return if $dir < 0 and $item eq $el_list[$#el_list];
   $area->hide;
   for my $i (0 .. $#el_list) {
-    if ($ui eq $el_list[$i]) {
+    if ($item eq $el_list[$i]) {
       splice @el_list, $i, 1;
       last;
     }
   }
   if ($dir > 0) {
     $area->remove($widget);
-    $area->put($widget, $ui->{posx}, $ui->{posy});
-    unshift @el_list, $ui;
+    $area->put($widget, $item->{posx}, $item->{posy});
+    unshift @el_list, $item;
   } else {
     $area->remove($widget);
     my @list;
@@ -723,14 +725,14 @@ sub ui_bring_to
       push @list, [ $child,
                     $child->allocation->x, $child->allocation->y ];
     }
-    $area->put($widget, $ui->{posx}, $ui->{posy});
+    $area->put($widget, $item->{posx}, $item->{posy});
     for my $item (@list) {
       $area->remove($item->[0]);
     }
     for my $item (@list) {
       $area->put($item->[0], $item->[1], $item->[2]);
     }
-    push @el_list, $ui;
+    push @el_list, $item;
   }
   $area->show_all;
 }
@@ -846,9 +848,9 @@ sub edit_attr_list
   #$ok->has_focus(1);
 }
 
-sub ui_operations
+sub widget_menu
 {
-  my $ui = shift;
+  my $item = shift;
   close_popups;
   $widget_popup = Gtk2::Window->new("popup");
   my ($t_w, $cx, $cy, $t_m) = Gtk2::Gdk->get_default_root_window->get_pointer;
@@ -857,13 +859,13 @@ sub ui_operations
   $widget_popup->add($hbox);
   my $b;
   $hbox->pack_start($b = Gtk2::Button->new("Edit"), 0, 1, 0);
-  $b->signal_connect(clicked => sub { close_popups; widget_edit($ui); }) ;
+  $b->signal_connect(clicked => sub { close_popups; widget_edit($item); }) ;
   $hbox->pack_start($b = Gtk2::Button->new("Copy"), 0, 1, 0);
-  $b->signal_connect(clicked => sub { close_popups; widget_copy($ui); }) ;
+  $b->signal_connect(clicked => sub { close_popups; widget_copy($item); }) ;
   $hbox->pack_start($b = Gtk2::Button->new("Delete"), 0, 1, 0);
-  $b->signal_connect(clicked => sub { close_popups; widget_delete($ui); } );
+  $b->signal_connect(clicked => sub { close_popups; widget_delete($item); } );
   $hbox->pack_start($b = Gtk2::Button->new("Resize"), 0, 1, 0);
-  $b->signal_connect(clicked => sub { close_popups; start_resize($ui); } );
+  $b->signal_connect(clicked => sub { close_popups; start_resize($item); } );
   $hbox->pack_start($b = Gtk2::Button->new("Cancel"), 0, 1, 0);
   $b->signal_connect(clicked => sub { close_popups; });
   $widget_popup->show_all;
@@ -883,10 +885,10 @@ sub quit_editor
   Gtk2->main_quit;
 }
 
-sub clear_form
+sub clear_screen
 {
   if ($changed) {
-    confirm_saving(sub { $changed=0; clear_form(); });
+    confirm_saving(sub { $changed=0; clear_screen(); });
     return;
   }
   close_popups();
@@ -895,10 +897,10 @@ sub clear_form
   $status_xy = $status_widget = $status_msg = "";
   update_status();
   bg_set($area, undef);
-  for my $ui (@el_list) { $ui->{WIDGET}->destroy; }
+  for my $item (@el_list) { $item->{WIDGET}->destroy; }
   @el_list = ();
   %el_hash = ();
-  set_form_name ("noname.oxf");
+  set_screen_name("noname.osx");
   $changed = 0;
 }
 
@@ -911,20 +913,20 @@ sub confirm_saving
              $func);
 }
 
-sub open_form
+sub open_screen
 {
   my $file = shift;
   if ($changed) {
-    confirm_saving(sub { $changed=0; open_form($file); });
+    confirm_saving(sub { $changed=0; open_screen($file); });
     return;
   }
-  $file = "noname.oxf" unless defined $file;
+  $file = "noname.osx" unless defined $file;
   if ($file eq "?") {
-    create_file_sel("open", "Open form...", $fmt_home,
-                     \&open_form);
+    create_file_sel("open", "Open screen...", $scr_home,
+                     \&open_screen);
     return;
   }
-  clear_form();
+  clear_screen();
   unless (-r $file) {
     print "cannot read $file\n";
     undef $fwidth;
@@ -945,7 +947,7 @@ sub open_form
   $fwin->set_default_size($rw, $rh);
   $fwin->resize($rw, $rh);
   $fwin->show;
-  set_form_name($file);
+  set_screen_name($file);
   bg_set($area, $bgname);
   $changed = 0;
   print "opened [$file] ${fwidth}x${fheight}\n";
@@ -953,19 +955,19 @@ sub open_form
 
 sub handle_xml_elem
 {
-  my ($file, $fmt, $tag, $attr) = @_;
-  return 0 unless $tag eq "object" or $tag eq "window";
+  my ($file, $screen, $tag, $attr) = @_;
+  return 0 unless $tag eq "widget" or $tag eq "window";
   my %attr = %{$attr};
-  if ($tag eq "object")
+  if ($tag eq "widget")
   {
     $attr{class} = "" unless defined $attr{class};
     $attr{type} = "" unless defined $attr{type};
-    my $clas = join("::", "Optikus", "Forms", "Widget", $attr{class}, $attr{type});
+    my $clas = join("::", "Optikus", "Canvas", "Widget", $attr{class}, $attr{type});
     $clas =~ s/:+$//;
     $attr{_parent} = $area;
     $attr{_window} = $fwin;
-    $attr{_form} = $fmt;
-    ui_create($clas, %attr);
+    $attr{_screen} = $screen;
+    widget_create($clas, %attr);
   }
   if ($tag eq "window")
   {
@@ -979,41 +981,46 @@ sub handle_xml_elem
   return 1;
 }
 
-sub save_form
+sub save_screen
 {
   my $file = shift;
-  $file = $form_name unless defined $file;
+  $file = $screen_name unless defined $file;
   $file = "?" if $file =~ /^noname/;
   if ($file eq "?") {
-    create_file_sel("save_as","Save form as...", $fmt_home, \&save_form);
+    create_file_sel("save_as","Save screen as...", $scr_home, \&save_screen);
     return;
   }
   unless (open F, ">$temp") {
     Gtk->print("cannot open [$temp] for writing");
     return;
   }
-  print F "<format>\n  <window>\n";
+  print F "<?xml version=\"1.0\"?>\n";
+  print F "<screen>\n <window>\n";
   my ($w, $h) = ($scroll->allocation->width, $scroll->allocation->height);
-  print F "\t<width>$w</width>\n\t<height>$h</height>\n";
-  print F "\t<background>$bgname</background>\n" if defined $bgname;
-  print F "\t<textfont>$text_font</textfont>\n" if defined $text_font;
-  print F "\t<textcolor>$text_color</textcolor>\n" if defined $text_color;
-  print F "  </window>\n  <objects>\n";
-  for my $ui (reverse @el_list) {
-    my $class = ref($ui);
-    $class =~ s/^Optikus::Forms::Widget:://;
-    print F "\t<object>\n";
-    print F "\t\t<class>$class</class>\n";
-    my @attr = $ui->get_attr_list;
+  print F "  <width>$w</width>\n  <height>$h</height>\n";
+  print F "  <background>$bgname</background>\n" if defined $bgname;
+  print F "  <textfont>$text_font</textfont>\n" if defined $text_font;
+  print F "  <textcolor>$text_color</textcolor>\n" if defined $text_color;
+  print F " </window>\n <widgets>\n";
+  for my $item (reverse @el_list) {
+    my $class = ref($item);
+    $class =~ s/^Optikus::Canvas::Widget:://;
+    print F "  <widget>\n";
+    print F "   <class>$class</class>\n";
+    my @attr = $item->get_attr_list;
     foreach my $a (@attr) {
       my $attr = $a->{attr};
-      my $value = $ui->{$attr};
+      my $value = $item->{$attr};
       next unless defined $value and length($value) > 0;
-      print F "\t\t<$attr>$value</$attr>\n";
+      $value =~ s/\&/\&amp\;/g;
+      $value =~ s/\</\&lt\;/g;
+      $value =~ s/\>/\&gt\;/g;
+      $value =~ s/\"/\&quot\;/g;
+      print F "   <$attr>$value</$attr>\n";
     }
-    print F "\t</object>\n";
+    print F "  </widget>\n";
   }
-  print F "  </objects>\n</format>\n";
+  print F " </widgets>\n</screen>\n";
   unless (close F) {
     print "error while closing temp file $temp";
     return;
@@ -1021,27 +1028,27 @@ sub save_form
   #rename $file, "$file.bak";
   #rename $temp, $file;
   system("mv -f $file $file.bak 2>/dev/null; mv -f $temp $file 2>/dev/null");
-  set_form_name($file);
+  set_screen_name($file);
   $changed = 0;
   print "saved [$file]\n";
 }
 
-sub set_form_name
+sub set_screen_name
 {
   my $name = shift;
-  $form_name = $name;
+  $screen_name = $name;
   $name =~ s{^.*\/}{};
   $fwin->set_title("Optikus Display Editor [$name]");
 }
 
 sub dump_widget
 {
-  my ($ui, $msg) = @_;
-  my $clas = ref $ui;
-  $clas =~ s{Optikus::Forms::Widget::}{};
+  my ($item, $msg) = @_;
+  my $clas = ref $item;
+  $clas =~ s{Optikus::Canvas::Widget::}{};
   $clas =~ s{::}{/};
-  print "$msg: $clas ($ui->{posx} x $ui->{posy})";
-  my $g = $ui->{WIDGET};
+  print "$msg: $clas ($item->{posx} x $item->{posy})";
+  my $g = $item->{WIDGET};
   if (defined $g) {
     my ($x, $y) = ($g->allocation->x, $g->allocation->y);
     my ($w, $h) = ($g->allocation->width, $g->allocation->height);
@@ -1054,7 +1061,7 @@ sub dump_list
 {
   my $i = 0;
   print "================\n";
-  for my $ui (@el_list) { dump_widget($ui, ++$i); }
+  for my $item (@el_list) { dump_widget($item, ++$i); }
   print "================\n";
 }
 
@@ -1063,14 +1070,14 @@ sub dump_list
 #
 
 pforms_gtk_init("opedit");
-$Optikus::Forms::Widget::SIMULATION = 1;
+$Optikus::Canvas::Widget::SIMULATION = 1;
 $cursor_normal = Gtk2::Gdk::Cursor->new("left-ptr");
 $cursor_resize = Gtk2::Gdk::Cursor->new("lr-angle");
 $cursor_move   = Gtk2::Gdk::Cursor->new("fleur");
-$fwin = create_form();
-Optikus::Forms::Util::set_window_icon($fwin, "kpic/colorize.png");
+$fwin = create_screen();
+Optikus::Canvas::Util::set_window_icon($fwin, "kpic/colorize.png");
 $changed =0;
-open_form($ARGV[0]);
+open_screen($ARGV[0]);
 $fwin->signal_connect(destroy  => \&quit_editor);
 $scroll->signal_connect(size_allocate => \&bg_refresh);
 Gtk2->main;

@@ -49,160 +49,159 @@ public:
 
 	void init(const char *client_name, int poll_period = OQWATCH_POLL_PERIOD);
 	void exit();
-	static bool connect(const char *server = 0, int timeout = 0);
-	static OQWatch *getInstance()	{ return instance; }
 
+	static bool connect(const char *server = 0, int timeout = 0);
+	static void idle(int timeout = 0);
+
+	static OQWatch *getInstance()	{ return instance; }
+	static int setVerbosity(int level);
 
 	static bool isAlive(const char *name)	{ return owatchGetAlive(name); }
 	static bool isConnected()				{ return isAlive("*"); }
 	static bool domainIsFull()				{ return isAlive("+"); }
 
-	static void triggerSubject(const char *name)
-	{
-		owatchDetachOp(owatchTriggerSubject(name));
-	}
-
-	static void optimizeReading(const char *desc, bool enable = true)
-	{
-		owatchOptimizeReading(desc,
-						enable ? OWATCH_ROPT_ALWAYS : OWATCH_ROPT_NEVER, 0);
-	}
+	static void triggerSubject(const char *name);
+	static void optimizeReading(const char *desc, bool enable = true);
 
 	static ooid_t getOoidByDesc(const char *desc, int timeout = 0);
-
-
-	// getTYPE by description
-
-	static int getInt(const char *desc, int timeout = 0, bool *failed_p = 0)
-	{
-		int err = 0;
-		int val = (int) owatchReadAsLong(desc, timeout, &err);
-		if (failed_p)  *failed_p = (err != 0);
-		return val;
-	}
-
-	static uint_t getUInt(const char *desc, int timeout = 0, bool *failed_p = 0)
-	{
-		return (uint_t) getInt(desc, timeout, failed_p);
-	}
-
-	static long getLong(const char *desc, int timeout = 0, bool *failed_p = 0)
-	{
-		int err = 0;
-		long val = owatchReadAsLong(desc, timeout, &err);
-		if (failed_p)  *failed_p = (err != 0);
-		return val;
-	}
-
-	static ulong_t getULong(const char *desc, int timeout = 0, bool *failed_p = 0)
-	{
-		return (ulong_t) getLong(desc, timeout, failed_p);
-	}
-
-	static float getFloat(const char *desc, int timeout = 0, bool *failed_p = 0)
-	{
-		int err = 0;
-		float val = owatchReadAsFloat(desc, timeout, &err);
-		if (failed_p)  *failed_p = (err != 0);
-		return val;
-	}
-
-	static double getDouble(const char *desc, int timeout = 0, bool *failed_p = 0)
-	{
-		int err = 0;
-		double val = owatchReadAsDouble(desc, timeout, &err);
-		if (failed_p)  *failed_p = (err != 0);
-		return val;
-	}
-
-	static QString getString(const char *desc, int timeout = 0, bool *failed_p = 0)
-	{
-		int err = 0;
-		char *str = owatchReadAsString(desc, timeout, &err);
-		if (failed_p)  *failed_p = (err != 0);
-		if (str) {
-			QString val(str);
-			oxfree(str);
-			return val;
-		}
-		return QString();
-	}
-
-	// Control messages
+	static bool getInfo(ooid_t id, owquark_t& inf, int timeout = 0);
+	static bool getInfo(const char *desc, owquark_t& inf, int timeout = 0);
+	static bool waitOp(owop_t op, int timeout = 0,
+						int *err = 0, bool detach = false);
 
 	static bool sendCMsgAsDoubleArray(const QString& target, int klass, int type,
-									const QString& format, double *data)
-	{
-		QString xformat("$(D)");
-		xformat += format;
-		// FIXME: target is not used
-		oret_t rc = owatchSendCtlMsg("sample", klass, type, xformat, data);
-		return (OK == rc);
-	}
+									const QString& format, double *data);
 
-	static int setVerbosity(int level)
-	{
-		int prev = owatch_verb;
-		if (level != -1)
-			owatch_verb = level;
-		return prev;
-	}
-
-	static bool getInfo(ooid_t id, owquark_t& info, int timeout = 0)
-	{
-		return waitOp(owatchGetInfoByOoid(id, &info));
-	}
-
-	static bool getInfo(const char *desc, owquark_t& info, int timeout = 0)
-	{
-		return waitOp(owatchGetInfoByDesc(desc, &info));
-	}
-
-	static bool waitOp(owop_t op, int timeout = 0, int *err_out = 0,
-						bool detach = false);
+	// typed reading
 
 	static QVariant ovalToVariant(const oval_t *);
+	static bool variantToOval(const QVariant& var, oval_t& val, char* &buf);
 
-	int addMonitorBg(const char *desc, long param, int timeout);
-	bool cancelMonitorBg(int id);
+	static int readInt(const char *desc, int timeout = 0, bool *ok = 0);
+	static uint_t readUInt(const char *desc, int timeout = 0, bool *ok = 0);
+	static long readLong(const char *desc, int timeout = 0, bool *ok = 0);
+	static ulong_t readULong(const char *desc, int timeout = 0, bool *ok = 0);
+	static float readFloat(const char *desc, int timeout = 0, bool *ok = 0);
+	static double readDouble(const char *desc, int timeout = 0, bool *ok = 0);
+	static QString readString(const char *desc, int timeout = 0, bool *ok = 0);
+	static QVariant readValue(const char *desc, int timeout = 0, bool *ok = 0);
 
-	static bool removeMonitor(ooid_t ooid)
-	{
-		return (owatchRemoveMonitor(ooid) == OK);
-	}
-
-	static void removeAllMonitors()			{ owatchRemoveAllMonitors(); }
-
-	static void enableMonitoring(bool on)	{ owatchEnableMonitoring(on); }
+	static bool removeMonitor(ooid_t ooid);
+	static void removeAllMonitors();
+	static void renewAllMonitors();
+	static void enableMonitoring(bool on);
+	static void blockMonitoring(bool block, bool flush = false);
 
 	static QString errorString(int code)	{ return owatchErrorString(code); }
 
+	int monitorBg(const char *desc, long param = 0, int timeout = -1);
+	int readBg(const char *desc, long param = 0, int timeout = -1);
+	int writeBg(const char *desc, const QVariant& val, long param = 0,
+				int timeout = -1);
+
+	bool cancelBg(int id);
+	void cancelAllBg();
+
 signals:
-	void subjectsUpdated(const QString& all, const QString& sbj, const QString& st);
-	void dataUpdated(const owquark_t&, const QVariant&, long);
-	void monitorsUpdated(long param, const owquark_t&, int err);
+	void beginUpdates();
+	void endUpdates();
+	void subjectsUpdated(const QString& all,
+						const QString& sbj, const QString& st);
+	void dataUpdated(const owquark_t& inf, const QVariant& val, long time);
+
+	void monitorDone(long param, const owquark_t& inf, int err);
+	void readDone(long param, const owquark_t& inf,
+					const QVariant& val, int err);
+	void writeDone(long param, const owquark_t& inf, int err);
 
 protected:
 
-	static int aliveHandler(long param, const char *subj, const char *state);
-	static int dataHandler(long param, ooid_t id, const oval_t *pvalue);
-	static int monitorOpHandler(long param, owop_t op, int err);
-	void monitorHandler(owop_t op, int err_code);
-
-	struct Triplet
+	enum OpType
 	{
-		QString desc;
-		int timer;
-		long param;
+		OP_NONE = 0,
+		OP_MONITOR = 1,
+		OP_READ = 2,
+		OP_WRITE = 3,
+		OP_WRITE_NOINFO = 4
 	};
 
-	QMap<owop_t, Triplet> mon_ops;
-	QMap<int, owop_t> mon_touts;
+	class Bg
+	{
+	public:
 
-	void timerEvent(QTimerEvent *);
+		OpType type;
+		int id;
+		QString desc;
+		long param;
+		int timer;
+		oval_t *val;
+		char *buf;
+		owop_t op;
+
+		Bg(OpType _type, int _id, const QString& _desc, long _param)
+			: type(_type), id(_id), desc(_desc), param(_param),
+				timer(0), val(0), buf(0), op(0)
+		{
+		}
+
+		~Bg()	{ dispose(); }
+
+		void dispose()
+		{
+			delete val;
+			val = 0;
+			delete buf;
+			buf = 0;
+		}
+	};
+
+	QMap<int, Bg*> ids;
+	QMap<owop_t, Bg*> ops;
+	QMap<int, Bg*> timers;
+
 	int poll_period;
-
+	static int next_id;
 	static OQWatch *instance;
+
+	static int aliveHandler(long param, const char *subj, const char *state);
+	static int dataHandler(long param, ooid_t id, const oval_t *pvalue);
+	static int libraryOpHandler(long param, owop_t op, int err);
+
+	void bgHandler(owop_t op, int err);
+	void finishBg(OpType type, const char *desc, long param, int err,
+					const QVariant *val_p = 0);
+	bool writeBgGotInfo(Bg * bg);
+	void timerEvent(QTimerEvent *);
 };
+
+
+inline void OQWatch::triggerSubject(const char *name)
+	{ owatchDetachOp(owatchTriggerSubject(name)); }
+
+inline void OQWatch::optimizeReading(const char *desc, bool enable)
+	{ owatchOptimizeReading(desc, enable ? OWATCH_ROPT_ALWAYS
+										: OWATCH_ROPT_NEVER, 0); }
+
+inline bool OQWatch::getInfo(ooid_t id, owquark_t& inf, int timeout)
+	{ return waitOp(owatchGetInfoByOoid(id, &inf)); }
+
+inline bool OQWatch::getInfo(const char *desc, owquark_t& inf, int timeout)
+	{ return waitOp(owatchGetInfoByDesc(desc, &inf)); }
+
+inline bool OQWatch::removeMonitor(ooid_t ooid)
+	{ return (owatchRemoveMonitor(ooid) == OK); }
+
+inline void OQWatch::removeAllMonitors()
+	{ owatchRemoveAllMonitors(); }
+
+inline void OQWatch::renewAllMonitors()
+	{ owatchRenewAllMonitors(); }
+
+inline void OQWatch::enableMonitoring(bool on)
+	{ owatchEnableMonitoring(on); }
+
+inline void OQWatch::blockMonitoring(bool block, bool flush)
+	{ owatchBlockMonitoring(block, flush); }
+
 
 #endif // OQWATCH_H

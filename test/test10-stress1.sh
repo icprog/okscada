@@ -4,7 +4,7 @@
 #GDB=gdb
 numvals=150
 nummons=10
-deadline=60
+deadline=90
 printall=0
 #hub_verb=5
 

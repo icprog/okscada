@@ -24,10 +24,12 @@
 
 */
 
-#include <qkeysequence.h>
-
 #include "oqcanvas.h"
 #include "ocwidgets.h"
+#include "oqcommon.h"
+
+#include <qkeysequence.h>
+#include <qdialog.h>
 
 
 class QAction;
@@ -36,23 +38,104 @@ class QPopupMenu;
 class QMenuBar;
 class QToolBar;
 class QStatusBar;
+class QSignalMapper;
+class QPushButton;
+class QLineEdit;
+class OQEditView;
+class OQEditWindow;
 
 
-class OQEditView : public OQCanvasView
+class OQGridCanvasItem : public QCanvasRectangle
+{
+public:
+
+	OQGridCanvasItem(QCanvas *c);
+	void setSnap(int dx, int dy);
+	void getSnap(int& dx, int& dy);
+
+protected:
+
+	void drawShape(QPainter& p);
+
+private:
+
+	int dx, dy;
+};
+
+
+class OQPropEdit : public QDialog
 {
 	Q_OBJECT
 
 public:
 
-	OQEditView(QWidget *parent);
-	void setupWidgets(QWidget *panel, QStatusBar *statusbar);
-	void setupActions(QMenuBar *menubar, QToolBar *toolbar);
-	void setStatus(const QString &);
-	void newWidget(OCWidget *);
+	OQPropEdit(OQEditView *parent, const char *name, const QString& caption,
+				OCWidget *w, bool existing);
+	virtual ~OQPropEdit();
+
+protected slots:
+
+	void loadProps();
+	bool saveProps();
+	void valueChanged();
+	void clearChanged();
+	void click(int btn);
+	void handleCancel()		{ click(0); }
+	void handleOK()			{ click(1); }
+	void handleApply()	 	{ click(2); }
+	void handleReload()		{ click(3); }
+	void editSpecial(int row);
+	void widgetGeometryChanged(OCWidget *);
+
+signals:
+
+	void widgetChanged();
+
+protected:
+
+	void buildProps();
+	QLineEdit *getEdit(int i);
+	OQEditView *editView()		{ return (OQEditView *) parentWidget(); }
+
+	QStatusBar *statusbar;
+	QSignalMapper *specmap;
+	QWidget *box;
+	QPushButton *apply;
+	OCWidget *w;
+	OCAttrList atts;
+	bool changed : 1;
+	bool existing : 1;
+};
+
+
+class OQEditView : public OQCanvasView, public OQuitFilter
+{
+	Q_OBJECT
+
+public:
+
+	OQEditView(OQEditWindow *parent);
+
 	void setGrid(int step_x, int step_y);
 	void setGrid(int step)		{ setGrid(step, step); }
+	void setStatus(const QString& msg);
+	void setTempStatus(const QString& msg);
+	void setFileName(const QString& filename);
+
+	bool load();
+	bool save();
+	bool canQuit();
+
+	OQEditWindow * editWindow() const
+		{ return (OQEditWindow *) parentWidget(); }
 
 public slots:
+
+	bool canClose();
+	void clear();
+	void canvasResized();
+	void widgetChanged();
+	void selectWidget(OCWidget *w);
 
 	void fileNew();
 	void fileOpen();
@@ -60,16 +143,18 @@ public slots:
 	void fileSaveAs();
 	void fileQuit();
 
+	void editDefFont();
+	void editDefColor();
+	void editBgImage();
 	void editProps();
 	void editCopy();
 	void editDelete();
-	void editSnapDown();
-	void editSnapUp();
-	void editBringBack();
-	void editBringFront();
-	void editResize();
+	void editSnapLess();
+	void editSnapMore();
+	void editRaise();
+	void editLower();
+	void setResizeMode(bool on);
 
-	void setBgImage();
 	void setGrid1()		{ setGrid(1); }
 	void setGrid4()		{ setGrid(4); }
 	void setGrid8()		{ setGrid(8); }
@@ -77,44 +162,73 @@ public slots:
 
 	void helpAbout();
 
-	void newLabel()			{ newBasicWidget(ORTTI_Label); }
-	void newString()		{ newBasicWidget(ORTTI_String); }
-	void newPixmap()		{ newBasicWidget(ORTTI_Pixmap); }
-	void newBar()			{ newBasicWidget(ORTTI_Bar); }
+	void newWidget(int rtti);
 
-	void newButton()		{ newBasicWidget(ORTTI_Button); }
-	void newSwitch()		{ newBasicWidget(ORTTI_Switch); }
-	void newAnim()			{ newBasicWidget(ORTTI_Anim); }
+signals:
+	void widgetGeometryChanged(OCWidget *);
 
-	void newRuler()			{ newBasicWidget(ORTTI_Ruler); }
-	void newDial()			{ newBasicWidget(ORTTI_Dial); }
+protected:
 
-	void newBigTank()		{ newBasicWidget(ORTTI_BigTank); }
-	void newSmallTank()		{ newBasicWidget(ORTTI_SmallTank); }
-	void newRoundTank()		{ newBasicWidget(ORTTI_RoundTank); }
-	void newThermometer()	{ newBasicWidget(ORTTI_Thermometer); }
-	void newVolume()		{ newBasicWidget(ORTTI_Volume); }
-	void newManometer()		{ newBasicWidget(ORTTI_Manometer); }
-	void newDigitalLED()	{ newBasicWidget(ORTTI_DigitalLED); }
+	QPoint align(QPoint pos);
+	void setBaseSize();
+	void viewportResizeEvent(QResizeEvent * event);
 
-	void newCurve()			{ newBasicWidget(ORTTI_Curve); }
-	void newRunner()		{ newBasicWidget(ORTTI_Runner); }
-	void newOffnom()		{ newBasicWidget(ORTTI_Offnom); }
-	void newFormLink()		{ newBasicWidget(ORTTI_FormLink); }
+	void processMouseEvent(QMouseEvent *e, OCWidget *w);
+	void leaveEvent(QEvent *e);
+	void updateStatus();
+	void closePropEdit();
+
+	bool canDo(bool sure, const QString& text);
+	bool areYouSure(bool sure, const QString& text);
+
+	void timerEvent(QTimerEvent *e);
+	void keyPressEvent(QKeyEvent *e);
+	void keyReleaseEvent(QKeyEvent *e);
 
 private:
 
-	QAction *newAction(const char *text, const char *icon,
+	QAction *newAction(const QString& text, const QString& icon,
 						const char *slot, bool toggle = false,
 						QKeySequence accel = 0);
 	QAction *newCreator(QPopupMenu *pm, QToolBar *tb,
-						const char *text, const char *icon,
-						const char *slot, QKeySequence accel = 0);
-	QAction *newCreator(QPopupMenu *pm, const char *text,
-						const char *slot, QKeySequence accel = 0)
-	{
-		return newCreator(pm, 0, text, 0, slot, accel);
-	}
+						const QString& text, const QString& icon,
+						int rtti, QKeySequence accel = 0);
+	QAction *newCreator(QPopupMenu *pm, const QString& text, int rtti,
+						QKeySequence accel = 0)
+		{ return newCreator(pm, 0, text, 0, rtti, accel); }
 
+	QSignalMapper *creator_map;
+
+	int mouse_x, mouse_y;
+	OCWidget *hover_widget;
+	QString status_msg;
 	QStatusBar *statusbar;
+	int status_timer_id;
+	QColor saved_status_bg_color;
+
+	OQGridCanvasItem *grid_ci;
+	QPopupMenu *widget_menu, *canvas_menu;
+
+	OCWidget *sel_widget;
+	QPoint rel_pos;
+	QAction *resize_mode;
+	bool saved_resize_mode;
+	bool left_button_pressed;
+	int size_timer_id;
+
+	bool changed : 1;
+	bool has_name : 1;
+};
+
+
+inline bool
+OQEditView::canDo(bool sure, const QString& text)
+	{ return (sure || areYouSure(false, text)); }
+
+
+class OQEditWindow : public OQCanvasWindow
+{
+public:
+	OQEditWindow();
+	OQEditView *editView()		{ return (OQEditView *) canvasView(); }
 };

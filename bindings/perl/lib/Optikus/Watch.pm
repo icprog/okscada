@@ -47,7 +47,6 @@ BEGIN
                               waits wait_for
                               send_ctlmsg send_immed count_acked
                               sample_script shell_script
-                              form_exec form_script
                               send_uv send_packet
                              ) ] );
   @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -646,94 +645,27 @@ sub waitFor
 sub runSampleScript
 {
   my $name = shift;
-  return 0 unless $inited;
-  my $sample_script = "$root_dir/host/bin/sample-script";
-  unless (-x $sample_script) {
-    olog "cannot find the $sample_script executable";
+  my $rc = 0;
+  unless ($name) {
+    olog "script name not provided";
     return 0;
   }
-  my $script = "$root_dir/share/script/$name.oss";
-  unless (-r $script) {
-    olog "cannot find the $script sample script";
-    return 0;
+  begin_test($name);
+  my $path = "$root_dir/share/scripts/$name.opl";
+  if (open(OPL, $path)) {
+    my $script = "";
+    my $pos = 0;
+    my $n;
+    while(($n = sysread(OPL, $script, 8192, $pos)) > 0) { $pos += $n; }
+    close OPL;
+    eval $script;
+    olog $@ if $@;
+    $rc = 1;
+  } else {
+    olog "$path: cannot open";
   }
-  olog "run sample script $name";
-  system ("$sample_script $name &");
-  return 1;
-}
-
-
-sub pformsVariable
-{
-  my $name = shift;
-  my $s = $name;
-  my $ooid;
-  while ($s =~ /(.*?\[)((?:[_a-zA-Z]\w*\@)?[_a-zA-Z][\w\[\]\.]*)(\].*?)$/) {
-    my ($left, $ind, $right) = ($1, $2, $3);
-    $ooid = Optikus::Watch::info($ind);
-    unless ($ooid) {
-      olog "pformsVariable: index [$ind] in [$name] not found";
-      return 0;
-    }
-    my $val = Optikus::Watch::read($ind);
-    unless (defined($val)) {
-      olog "pformsVariable: cannot read index [$ind] in [$name]";
-    }
-    $s = "$left$val$right";
-  }
-  olog "pformsVariable: [$name] --> [$s]";
-  $ooid = Optikus::Watch::info($s);
-  return $ooid;
-}
-
-
-sub pformsWrite
-{
-  my $line = shift;
-  return 0 unless $inited;
-  chomp $line;
-  unless ($line =~ /^\s*(.*?)\s*=\s*(.*?)\s*$/) {
-    olog "pformsWrite: invalid syntax: [$line]";
-    return 0;
-  }
-  my ($left, $right) = ($1, $2);
-  my $ooid = pformsVariable($left);
-  unless ($ooid) {
-    olog "pformsWrite: variable [$left] not found: [$line]";
-    return 0;
-  }
-  $ooid = pformsVariable($right) if  ($right =~ m/.*?\@.*?/);
-  my $val = $ooid ? Optikus::Watch::read($right) : eval($right);
-  unless (defined $val) {
-    olog "pformsWrite: undefined right value: [$line]";
-    return 0;
-  }
-  my $rc = Optikus::Watch::write($left, $val);
+  end_test($name);
   return $rc;
-}
-
-
-sub runFormScript
-{
-  my $name = shift;
-  return 0 unless $inited;
-  my $script = "$root_dir/test/pforms/$name";
-  unless (-r $script) {
-    olog "cannot find pforms script $script";
-    return 0;
-  }
-  olog "run pforms script $script";
-  open (SCRIPT, "< $script");
-  my @lines = (<SCRIPT>);
-  close (SCRIPT);
-  for (@lines) {
-    chomp;
-    next if /^\s*\#/;
-    next if /^\s*$/;
-    pformsWrite ($_);
-  }
-  # FIXME...
-  return 1;  
 }
 
 
@@ -748,6 +680,7 @@ sub runShellScript
 
 # ================= test control ===============
 
+my $already_inited;
 
 sub begin_test
 {
@@ -761,29 +694,35 @@ sub begin_test
   $test_name = "test" unless defined $test_name;
   $root_dir = $ENV{OPTIKUS_HOME};
   $root_dir = $ENV{HOME} unless defined($root_dir) && length($root_dir) > 0;
-  my $log_file = (-d "$root_dir/var/log") ? "$root_dir/var/log/host.log"
-                                          : "./host.log";
-  my $client_name = "OTEST";
-  Optikus::Log::open($client_name, $log_file, 4096);
-  Optikus::Log::mode(Optikus::Log::mode() | OLOG_STDOUT | OLOG_FFLUSH)
-    unless $no_stdout;
-  Optikus::Watch::init(client_name => $client_name,
-                       verbosity => 2,
-                       conn_timeout => 0,
-                       def_timeout => 1000,
-                      )
-      or croak "cannnot start test \"$test_name\"";
-  olog "*** BEGIN TEST \"$test_name\" ***";
+
+  $already_inited = ($inited && ($test_name ne "(DEFAULT)"));
+  unless ($already_inited) {
+    end_test() if $inited;
+    my $log_file = "scripts.log";
+    $log_file = "$root_dir/var/log/$log_file" if -d "$root_dir/var/log";
+    Optikus::Log::open($test_name, $log_file, 4096);
+    Optikus::Log::mode(Optikus::Log::mode() | OLOG_STDOUT | OLOG_FFLUSH)
+      unless $no_stdout;
+    Optikus::Watch::init(client_name => $test_name,
+                         verbosity => 2,
+                         conn_timeout => 0,
+                         def_timeout => 2000,
+                        )
+        or croak "cannnot start test \"$test_name\"";
+  }
+  olog "*** BEGIN TEST \"$test_name\" ***" unless $test_name eq "(DEFAULT)";
   return 1;
 }
 
 
 sub end_test
 {
-  return unless $inited;
-  olog "*** END TEST \"$test_name\" ***";
-  Optikus::Watch::exit();
-  Optikus::Log::close();
+  olog "*** END TEST \"$test_name\" ***" unless $test_name eq "(DEFAULT)";
+  unless ($already_inited) {
+    return 0 unless $inited;
+    Optikus::Watch::exit();
+    Optikus::Log::close();
+  }
   return 1;
 }
 
@@ -800,10 +739,8 @@ sub send_immed     { sendImmedPacket(@_); }
 sub count_acked    { ackedPackets(@_); }
 sub waits($)       { waitSec(@_); }
 sub wait_for       { waitFor(@_); }
-sub sample_script($) { runSampleScript(@_); }
+sub sample_script  { runSampleScript(@_); }
 sub shell_script   { runShellScript(@_); }
-sub form_script    { runFormScript(@_); }
-sub form_exec      { pformsWrite(@_); }
 
 
 # =============== compatibility ==================

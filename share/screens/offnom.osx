@@ -1,0 +1,86 @@
+<?xml version="1.0"?>
+<screen>
+ <window>
+  <width>551</width>
+  <height>262</height>
+  <background>tiles/fossil.png</background>
+ </window>
+ <widgets>
+  <widget>
+   <class>Pixmap</class>
+   <posx>200</posx>
+   <posy>8</posy>
+   <width>32</width>
+   <height>32</height>
+   <Image>kpic/cache.png</Image>
+  </widget>
+  <widget>
+   <class>Label</class>
+   <posx>256</posx>
+   <posy>16</posy>
+   <Label>OFFNOMINALS</Label>
+   <font>Sans Bold 14</font>
+   <color>#360a51</color>
+  </widget>
+  <widget>
+   <class>Label</class>
+   <posx>120</posx>
+   <posy>56</posy>
+   <Label>Triggers</Label>
+   <font>Sans Bold 12</font>
+  </widget>
+  <widget>
+   <class>Label</class>
+   <posx>400</posx>
+   <posy>56</posy>
+   <Label>Results</Label>
+   <font>Sans Bold 12</font>
+  </widget>
+  <widget>
+   <class>Control::Offnominal</class>
+   <posx>16</posx>
+   <posy>104</posy>
+   <Label>Sample failure #1</Label>
+   <name>fail #1</name>
+  </widget>
+  <widget>
+   <class>Control::Offnominal</class>
+   <posx>16</posx>
+   <posy>160</posy>
+   <Label>Sample failure #2</Label>
+   <name>fail #2</name>
+  </widget>
+  <widget>
+   <class>Toggle::Switch</class>
+   <posx>352</posx>
+   <posy>104</posy>
+   <var>bfail[0]</var>
+   <no_border>yes</no_border>
+   <Image>png/transmini_off.png,png/transmini_yellow.png</Image>
+  </widget>
+  <widget>
+   <class>Toggle::Switch</class>
+   <posx>448</posx>
+   <posy>104</posy>
+   <var>bfail[1]</var>
+   <no_border>yes</no_border>
+   <Image>png/transmini_off.png,png/transmini_yellow.png</Image>
+  </widget>
+  <widget>
+   <class>Toggle::Switch</class>
+   <posx>352</posx>
+   <posy>160</posy>
+   <var>bfail[2]</var>
+   <no_border>yes</no_border>
+   <Image>png/transmini_off.png,png/transmini_yellow.png</Image>
+  </widget>
+  <widget>
+   <class>Toggle::Switch</class>
+   <posx>448</posx>
+   <posy>160</posy>
+   <var>bfail[3]</var>
+   <no_border>yes</no_border>
+   <Image>png/transmini_off.png,png/transmini_yellow.png</Image>
+  </widget>
+ </widgets>
+</screen>

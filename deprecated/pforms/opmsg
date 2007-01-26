@@ -35,7 +35,7 @@ use open ':utf8';
 use Carp;
 use Gtk2;
 use Data::Dumper;
-use Optikus::Forms::Util;
+use Optikus::Canvas::Util;
 use Optikus::Log ':all';
 use Optikus::Watch;
 
@@ -103,7 +103,7 @@ $run->can_default(1);
 $run->grab_default();
 
 $win->show_all;
-Optikus::Forms::Util::set_window_icon($win, "tools/sb_uvo.png");
+Optikus::Canvas::Util::set_window_icon($win, "tools/nav.png");
 
 $cmsg_tree->signal_connect(cursor_changed => \&select_cmsg);
 $cmsg_tree->signal_connect(key_press_event => \&process_keypress);
@@ -117,7 +117,6 @@ for (@paramlist) {
 
 Gtk2->main;
 
-# =============  end of main code =============
 
 # ====================== Control Messages ======================
 

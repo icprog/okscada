@@ -1,0 +1,12 @@
+[Font Substitutions]
+tms rmn=times^e
+
+[General]
+GUIEffects=general^eanimatemenu^eanimatecombo^eanimatetooltip^eanimatetoolbox^e
+font=Arial,12,-1,5,50,0,0,0,0,0
+style=Default
+
+[Palette]
+active=#000000^e#aec0cc^e#ffffff^e#d6dfe5^e#576066^e#748088^e#000000^e#00ffff^e#000000^e#f3f3f3^e#aec0cc^e#000000^e#ffffff^e#00007f^e#0000ff^e#ff00ff^e
+disabled=#808080^e#aec0cc^e#ffffff^e#c7dcea^e#576066^e#748088^e#808080^e#00ffff^e#808080^e#f3f3f3^e#aec0cc^e#000000^e#ffffff^e#808080^e#0000ff^e#ff00ff^e
+inactive=#000000^e#aec0cc^e#ffffff^e#c7dcea^e#576066^e#748088^e#000000^e#00ffff^e#000000^e#f3f3f3^e#aec0cc^e#000000^e#ffffff^e#00007f^e#0000ff^e#ff00ff^e

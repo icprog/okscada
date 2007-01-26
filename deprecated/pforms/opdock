@@ -33,7 +33,7 @@ use lib "$ENV{OPTIKUS_HOME}/lib/perl5/site_perl";
 use utf8;
 use Gtk2;
 use Gtk2::Pango;
-use Optikus::Forms::Util;
+use Optikus::Canvas::Util;
 use Optikus::Watch;
 use Optikus::Log ':all';
 use Time::Local 'timelocal_nocheck';
@@ -43,6 +43,7 @@ my ($pforms_icon, $pforms_toggle);
 my ($local_time, $sim_time, $lamp_hbox);
 my %lamps = ();
 my $NOTIME = " SIM ----/--/-- --:--:-- ";
+my $SCREEN0 = "root";
 
 
 sub create_main_window
@@ -79,17 +80,17 @@ sub create_status_box
   $pforms_toggle = Gtk2::ToggleButton->new;
   $box->pack_start($pforms_toggle, 0, 1, 0);
   $pforms_toggle->set_relief("none");
-  $pforms_icon = create_image("kpic/viewmagoff.png");
+  $pforms_icon = create_image("kpic/stop.png");
   $pforms_toggle->add($pforms_icon);
   $tooltips->set_tip($pforms_toggle, "Optikus infrastructure");
   $pforms_toggle->signal_connect(clicked => sub {
     my $to_on = $pforms_toggle->get_active;
-    my $is_on = Optikus::Forms::Util::pgrep("ohubd");
+    my $is_on = Optikus::Canvas::Util::pgrep("ohubd");
     if ($to_on and not $is_on) {
       restart_hub();
     }
     if (not $to_on and $is_on) {
-      system("$root_dir/bin/ocontrol stop &");
+      system("$root_home/bin/ocontrol stop &");
     }
   });
 
@@ -124,8 +125,8 @@ sub create_status_box
 sub script_check
 {
   my ($script_button, $script_icon) = @_;
-  $plist = Optikus::Forms::Util::plist() unless defined $plist;
-  my $found = Optikus::Forms::Util::pgrep("sample-script",$plist) ? 1 : 0;
+  $plist = Optikus::Canvas::Util::plist() unless defined $plist;
+  my $found = Optikus::Canvas::Util::pgrep("sample-script",$plist) ? 1 : 0;
   return 1 if $found == $script_button->{found};
   $script_button->{found} = $found;
   my ($icon, $tip);
@@ -148,7 +149,7 @@ sub script_action
   run_dialog("Kill Scripts Confirmation",
              "Are you sure to stop\nrunning scenarios ?",
               sub {
-                system("$root_dir/bin/ocontrol cleanup &");
+                system("$root_home/bin/ocontrol cleanup &");
                 Optikus::Watch::idle(200);
                 olog "running scripts killed";
               });
@@ -166,7 +167,7 @@ sub sense_mode
   return 1 if $mode eq $mode_icon->{prev_mode};
   $mode_icon->{prev_mode} = $mode;
   if ($mode eq "play") {
-    $mode_icon->set_from_pixbuf(create_pic("kpic/reload.png"));
+    $mode_icon->set_from_pixbuf(create_pic("kpic/player_play.png"));
     $tooltips->set_tip($mode_button, "Current mode: RUNNING");
   } else {
     $mode_icon->set_from_pixbuf(create_pic("kpic/player_stop.png"));
@@ -187,23 +188,23 @@ sub add_app_toggle
   $name = $app unless defined $name;
   $toggle->signal_connect( clicked => sub {
     my $to_on = $toggle->get_active;
-    my $is_on = Optikus::Forms::Util::pgrep($name);
+    my $is_on = Optikus::Canvas::Util::pgrep($name);
     if ($to_on and not $is_on) {
       my $path = $app;
       unless ($app =~ m'/') {
-        $path = "$pforms_home/bin/$app";
-        $path = "$root_dir/bin/$app" unless -r $path;
-        $path = "$root_dir/bin/$app" unless -r $path;
+        $path = "$root_home/bin/$app";
+        $path = "$root_home/bin/$app" unless -r $path;
+        $path = "$root_home/bin/$app" unless -r $path;
       }
       system("$path $param &");
     } elsif (not $to_on and $is_on) {
-      &Optikus::Forms::Util::pkill($name,"KILL");
+      &Optikus::Canvas::Util::pkill($name,"KILL");
     }
   });
   Glib::Timeout->add(4000, sub {
     #print "checking $name pl=".length($plist)."\n";
     my $btn_state = $toggle->get_active;
-    my $app_state = Optikus::Forms::Util::pgrep($name,$plist);
+    my $app_state = Optikus::Canvas::Util::pgrep($name,$plist);
     $toggle->set_active(0) if $btn_state and not $app_state;
     $toggle->set_active(1) if not $btn_state and $app_state;
     return 1;
@@ -214,12 +215,12 @@ sub create_dockbar
 {
   my $hbox = Gtk2::HBox->new(0, 5);
   add_app_toggle($hbox, "tools/book.png", "Message Viewer", "opecho");
-  add_app_toggle($hbox, "tools/sb_uvo.png", "Message Sending", "opmsg");
+  add_app_toggle($hbox, "tools/nav.png", "Message Sending", "opmsg");
   add_app_toggle($hbox, "kpic/fork.png", "Map View", "opmap");
-  add_app_toggle($hbox, "tools/tree.png", "Display Viewer", "opforms", "root");
+  add_app_toggle($hbox, "tools/tree.png", "Screen Viewer", "opscreens", $SCREEN0);
   add_app_toggle($hbox, "kpic/toggle_log.png", "Log Viewer", "oplogs");
   add_app_toggle($hbox, "kpic/viewmag.png", "Data Viewer", "osee1");
-  add_app_toggle($hbox, "kpic/colorize.png", "Display Editor", "opedit");
+  add_app_toggle($hbox, "kpic/colorize.png", "Screen Editor", "opedit");
   return $hbox;
 }
 
@@ -296,7 +297,7 @@ sub update_lamps
   my $png = $on ? "png/green.png" : "png/red.png";
   return if $subj eq "+";
   if ($subj eq "*") {
-    $png = $on ? "kpic/viewmag.png" : "kpic/viewmagoff.png";
+    $png = $on ? "kpic/exec.png" : "kpic/stop.png";
     $tooltips->set_tip($pforms_icon->get_parent,
                        "Optikus hub: ".
                        ($on ? "runs" : "stopped"));
@@ -326,13 +327,13 @@ sub update_lamps
 
 sub restart_hub
 {
-  system("$root_dir/bin/oscan -E $redirect_pforms_log &");
+  system("$root_home/bin/oscan -E $redirect_pforms_log &");
 }
 
 # main
 
 pforms_gtk_init("Optikus Dock");
-$redirect_pforms_log = ">> ".Optikus::Forms::Util::pforms_log_file()." 2>&1";
+$redirect_pforms_log = ">> ".Optikus::Canvas::Util::pforms_log_file()." 2>&1";
 Optikus::Watch::init(client_name => "opdock",
                      server => $ENV{OPTIKUS_SERVER},
                      msg_dest => "sample",
@@ -342,9 +343,9 @@ Optikus::Watch::init(client_name => "opdock",
                      period => 300,
                      verbosity => 2,
                     );
-$plist = Optikus::Forms::Util::plist();
+$plist = Optikus::Canvas::Util::plist();
 Glib::Timeout->add(2000,
-                   sub { $plist = Optikus::Forms::Util::plist(); return 1; });
+                   sub { $plist = Optikus::Canvas::Util::plist(); return 1; });
 create_main_window;
 $mainwin->window->set_icon(undef,
           create_pic("kpic/blend.png")->render_pixmap_and_mask(1));

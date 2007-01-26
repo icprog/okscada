@@ -381,8 +381,7 @@ OQMessageCenter::hashItem(OQMsgItem *item)
 void
 OQMessageCenter::loadValueCache()
 {
-	QDir etc(OQApplication::etc_home);
-	QFile file(etc.filePath("cmsg.params"));
+	QFile file(OQApp::etc.filePath("cmsg.params"));
 	if (!file.open(IO_ReadOnly))
 		return;
 	QString line;
@@ -412,10 +411,9 @@ OQMessageCenter::saveValueCache()
 {
 	if (!changed)
 		return;
-	QDir etc(OQApplication::etc_home);
-	etc.remove("cmsg.params.bak");
-	etc.rename("cmsg.params", "cmsg.params.bak");
-	QFile file(etc.filePath("cmsg.params"));
+	OQApp::etc.remove("cmsg.params.bak");
+	OQApp::etc.rename("cmsg.params", "cmsg.params.bak");
+	QFile file(OQApp::etc.filePath("cmsg.params"));
 	if (!file.open(IO_WriteOnly))
 		return;
 	QTextStream out(&file);
@@ -471,7 +469,7 @@ OQMessageCenter::OQMessageCenter()
 	OQMsgTreeParser tree_handler(this);
 	QXmlSimpleReader tree_reader;
 	tree_reader.setContentHandler(&tree_handler);
-	QFile tree_desc(OQApplication::etc_home + "/" + "cmsg.xml");
+	QFile tree_desc(OQApp::etc.filePath("cmsg.xml"));
 	QXmlInputSource tree_source(&tree_desc);
 	tree_reader.parse(tree_source);
 
@@ -540,13 +538,13 @@ terminate(int sig)
 int
 main(int argc, char **argv)
 {
-	OQApplication app("oqmsg", argc, argv);
+	OQApp app("oqmsg", argc, argv);
 	OQMessageCenter win;
 	app.setMainWidget(&win);
 	win.msgItemSelected(0);
 	win.resize(900, 600);
 	win.setCaption("Optikus Message Center");
-	win.setIcon(OQPixmap("tools/sb_uvo.png"));
+	win.setIcon(OQPixmap("tools/nav.png"));
 	win.show();
 	signal(SIGINT, terminate);
 	signal(SIGTERM, terminate);

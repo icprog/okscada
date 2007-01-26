@@ -1,0 +1,190 @@
+<?xml version="1.0"?>
+<screen>
+ <window>
+  <width>538</width>
+  <height>483</height>
+  <background>tiles/countertop.png</background>
+ </window>
+ <widgets>
+  <widget>
+   <class>Label</class>
+   <posx>160</posx>
+   <posy>8</posy>
+   <Label>SOLAR</Label>
+   <font>Sans Bold 18</font>
+   <color>#87541e</color>
+  </widget>
+  <widget>
+   <class>Toggle::Switch</class>
+   <posx>472</posx>
+   <posy>144</posy>
+   <tooltip>Simulate Solar</tooltip>
+   <var>sa_run</var>
+   <Image>png/sw1_on.png,png/sw1_off.png</Image>
+  </widget>
+  <widget>
+   <class>LED</class>
+   <posx>472</posx>
+   <posy>240</posy>
+   <var>disp_loop_cnt</var>
+   <format>%02d</format>
+   <subclass>cntr</subclass>
+  </widget>
+  <widget>
+   <class>Label</class>
+   <posx>104</posx>
+   <posy>48</posy>
+   <Label>Array #2</Label>
+   <font>Serif Bold 14</font>
+   <color>#16166a</color>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>52</posx>
+   <posy>92</posy>
+   <var>sa2_angle</var>
+   <format>Angle       %f</format>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>56</posx>
+   <posy>112</posy>
+   <var>sa2_sunx</var>
+   <format>SunX       %f</format>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>56</posx>
+   <posy>132</posy>
+   <var>sa2_suny</var>
+   <format>SunY       %f</format>
+  </widget>
+  <widget>
+   <class>Anim</class>
+   <posx>72</posx>
+   <posy>160</posy>
+   <var>sa2_night</var>
+   <Image>png/mlamp_off.png,png/mlamp_green.png</Image>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>128</posx>
+   <posy>168</posy>
+   <var>sa2_night</var>
+   <format>Night    %d</format>
+  </widget>
+  <widget>
+   <class>Anim</class>
+   <posx>72</posx>
+   <posy>200</posy>
+   <var>sa2_zone</var>
+   <Image>png/mlamp_off.png,png/mlamp_green.png</Image>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>128</posx>
+   <posy>208</posy>
+   <var>sa2_zone</var>
+   <format>Zone    %d</format>
+  </widget>
+  <widget>
+   <class>Anim</class>
+   <posx>16</posx>
+   <posy>240</posy>
+   <tooltip>Array 2 Support</tooltip>
+   <var>sa2_supp</var>
+   <Image>png/transprnt_off.png,png/transprnt_green.png</Image>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>128</posx>
+   <posy>248</posy>
+   <var>sa2_supp</var>
+   <format>Supp     %d</format>
+  </widget>
+  <widget>
+   <class>Custom::SolArray</class>
+   <posx>44</posx>
+   <posy>324</posy>
+   <number>2</number>
+  </widget>
+  <widget>
+   <class>Label</class>
+   <posx>320</posx>
+   <posy>48</posy>
+   <Label>Array #4</Label>
+   <font>Serif Bold 14</font>
+   <color>#16166a</color>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>296</posx>
+   <posy>88</posy>
+   <var>sa4_angle</var>
+   <format>Angle       %f</format>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>300</posx>
+   <posy>108</posy>
+   <var>sa4_sunx</var>
+   <format>SunX       %f</format>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>300</posx>
+   <posy>128</posy>
+   <var>sa4_suny</var>
+   <format>SunY       %f</format>
+  </widget>
+  <widget>
+   <class>Anim</class>
+   <posx>296</posx>
+   <posy>160</posy>
+   <var>sa4_night</var>
+   <Image>png/mlamp_off.png,png/mlamp_green.png</Image>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>352</posx>
+   <posy>168</posy>
+   <var>sa4_night</var>
+   <format>Night    %d</format>
+  </widget>
+  <widget>
+   <class>Anim</class>
+   <posx>296</posx>
+   <posy>200</posy>
+   <var>sa4_zone</var>
+   <Image>png/mlamp_off.png,png/mlamp_green.png</Image>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>352</posx>
+   <posy>208</posy>
+   <var>sa4_zone</var>
+   <format>Zone    %d</format>
+  </widget>
+  <widget>
+   <class>Anim</class>
+   <posx>240</posx>
+   <posy>240</posy>
+   <tooltip>Array 4 Support</tooltip>
+   <var>sa4_supp</var>
+   <Image>png/transprnt_off.png,png/transprnt_green.png</Image>
+  </widget>
+  <widget>
+   <class>String</class>
+   <posx>352</posx>
+   <posy>248</posy>
+   <var>sa4_supp</var>
+   <format>Supp     %d</format>
+  </widget>
+  <widget>
+   <class>Custom::SolArray</class>
+   <posx>290</posx>
+   <posy>330</posy>
+   <number>4</number>
+  </widget>
+ </widgets>
+</screen>
