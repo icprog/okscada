@@ -30,7 +30,6 @@
 #include <qtoolbar.h>
 #include <qmainwindow.h>
 #include <qaction.h>
-#include <qlabel.h>
 
 
 class OQDockBar;
@@ -99,18 +98,6 @@ public slots:
 };
 
 
-class OQTimeLabel : public QLabel
-{
-public:
-	OQTimeLabel(const QString& region, QWidget *parent);
-	void set(int yy, int mm, int dd, int hh, int mi, int ss);
-	void set() { set(0,0,0, 0,0,0); }
-
-protected:
-	const QString region;
-};
-
-
 class OQScriptBox : public OQDockButton
 {
 	Q_OBJECT
@@ -142,7 +129,6 @@ protected slots:
 
 	void updateSubjects(const QString& list,
 						const QString& subject, const QString& state);
-	void updateData(const owquark_t& , const QVariant& value, long time);
 
 signals:
 
@@ -161,10 +147,5 @@ private:
 
 	QWidget *subjectbox;
 	OQServerBox *serverbox;
-
-	OQTimeLabel *simtime;
-	ooid_t simtime_sec_id;
-	OQTimeLabel *walltime;
-	int walltime_timer;
 };
 

@@ -40,10 +40,7 @@
 
 #define qDebug(...)
 
-#define TIME_SUBJECT		"sample"
-#define TIME_VAR			TIME_SUBJECT "@gm_time.tm_"
 #define PROCLIST_PERIOD		2000
-#define WALLTIME_PERIOD		500
 
 
 /* ======== Dock Bar ======== */
@@ -65,30 +62,17 @@ OQDockBar::OQDockBar(OQWatch *_watch)
 	new OQServerStatus(this, top);
 	new OQScriptBox(this, top);
 
-	(new QFrame(top))->setFrameStyle(QFrame::VLine | QFrame::Sunken);
-	QWidget *timebox = new QWidget(top);
-	QBoxLayout *lo = new QVBoxLayout(timebox, 5, 2);
-	lo->setAutoAdd(true);
-	simtime = new OQTimeLabel("SIM", timebox);
-	walltime = new OQTimeLabel("MSK", timebox);
-	simtime_sec_id = 0;
-
 	subjectbox = new QGroupBox(this);
-	lo = new QHBoxLayout(subjectbox, 5, 2);
+	QBoxLayout *lo = new QHBoxLayout(subjectbox, 5, 2);
 	lo->setAutoAdd(true);
 	lo->addStretch(1);
 	setCentralWidget(subjectbox);
 
 	proclist_timer = startTimer(PROCLIST_PERIOD);
-	walltime_timer = startTimer(WALLTIME_PERIOD);
 
 	connect(watch,
 		SIGNAL(subjectsUpdated(const QString&, const QString&, const QString&)),
 		SLOT(updateSubjects(const QString&, const QString&, const QString&)));
-
-	connect(watch,
-		SIGNAL(dataUpdated(const owquark_t&, const QVariant&, long)),
-		SLOT(updateData(const owquark_t&, const QVariant&, long)));
 
 	top->adjustSize();
 	resize(top->width() + 4, 1);
@@ -121,13 +105,6 @@ OQDockBar::timerEvent(QTimerEvent *event)
 	if (event->timerId() == proclist_timer) {
 		updateProcessList();
 	}
-	else if (event->timerId() == walltime_timer) {
-		QDateTime dt(QDateTime::currentDateTime());
-		QDate d(dt.date());
-		QTime t(dt.time());
-		walltime->set(d.year(), d.month(), d.day(),
-						t.hour(), t.minute(), t.second());
-	}
 }
 
 
@@ -140,35 +117,6 @@ OQDockBar::updateSubjects(const QString& all_subjects,
 		OQSubjectBox::updateGroupWidget(all_subjects, subjectbox, 0);
 	}
 	OQSubjectBox::updateGroupWidget(subject, state, subjectbox, 0);
-
-	if (subject == TIME_SUBJECT) {
-		if (state.isEmpty()) {
-			simtime->set();
-			simtime_sec_id = 0;
-		} else {
-			watch->optimizeReading(TIME_VAR "year");
-			watch->optimizeReading(TIME_VAR "mon");
-			watch->optimizeReading(TIME_VAR "mday");
-			watch->optimizeReading(TIME_VAR "hour");
-			watch->optimizeReading(TIME_VAR "min");
-			watch->optimizeReading(TIME_VAR "sec");
-		}
-	}
-}
-
-
-void
-OQDockBar::updateData(const owquark_t& info, const QVariant& v, long time)
-{
-	if (simtime_sec_id == 0) {
-		simtime_sec_id = watch->getOoidByDesc(TIME_VAR "sec");
-	}
-	if (info.ooid == simtime_sec_id) {
-		simtime->set(
-			watch->readInt(TIME_VAR "year"), watch->readInt(TIME_VAR "mon"),
-			watch->readInt(TIME_VAR "mday"), watch->readInt(TIME_VAR "hour"),
-			watch->readInt(TIME_VAR "min"), watch->readInt(TIME_VAR "sec"));
-	}
 }
 
 
@@ -407,32 +355,6 @@ OQProgramButton::buttonClicked()
 		system(cmd);
 	}
 	getDockBar()->updateProcessList();
-}
-
-
-/* ======== OQTimeLabel ======== */
-
-
-OQTimeLabel::OQTimeLabel(const QString& _region, QWidget *parent)
-	: QLabel(parent), region(_region)
-{
-	setTextFormat(PlainText);
-	setFont(QFont("Courier New", 12, QFont::Bold));
-	set();
-}
-
-
-void
-OQTimeLabel::set(int yy, int mm, int dd, int hh, int mi, int ss)
-{
-	QString text;
-	if (yy <= 0 || mm <= 0 || dd <= 0 || hh < 0 || mi < 0 || ss < 0) {
-		text.sprintf("%3s ----/--/-- --:--:--", region.ascii());
-	} else {
-		text.sprintf("%3s %04d/%02d/%02d %03d:%02d:%02d",
-					region.ascii(), yy, mm, dd, hh, mi, ss);
-	}
-	setText(text);
 }
 
 
