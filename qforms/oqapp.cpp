@@ -78,8 +78,6 @@ OQApp::OQApp(const QString& _client_name, int &argc, char **argv,
 		ohome = dir.canonicalPath();
 		if (ohome.isNull())
 			ohome = dir.absPath();
-		// FIXME: FIXME: FIXME: HACK !!!
-		char *HACK="/home/vit/optikus"; if (QDir(HACK).exists()) ohome=HACK;
 		setenv("OPTIKUS_HOME", ohome, 1);
 	}
 	root.setPath(ohome);

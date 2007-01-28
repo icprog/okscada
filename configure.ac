@@ -24,9 +24,6 @@ AC_CONFIG_FILES([Makefile include/Makefile util/Makefile
 				hub/Makefile watch/Makefile subj/Makefile
 				doc/Makefile share/Makefile test/Makefile])
 
-dnl TEMPORARY, DEVELOPMENT ONLY !!!
-AC_PREFIX_DEFAULT([/home/vit/optikus])
-
 
 dnl Checks for programs.
 AC_PROG_AWK
@@ -71,20 +68,19 @@ dnl? AC_HEADER_STDC
 dnl? AC_CHECK_HEADERS([arpa/inet.h fcntl.h libintl.h locale.h malloc.h \
 dnl? 				netdb.h netinet/in.h stdlib.h string.h strings.h \
 dnl? 				sys/ioctl.h sys/socket.h sys/time.h unistd.h])
-AC_CHECK_HEADERS([tundra.h])
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 
 dnl? AC_HEADER_STDBOOL
 dnl? AC_C_CONST
-dnl? AC_TYPE_SIZE_T
+AC_TYPE_SIZE_T
 dnl? AC_HEADER_TIME
 dnl? AC_STRUCT_TM
-dnl? AC_C_VOLATILE
+AC_C_VOLATILE
 
 # Checks for library functions.
 dnl? AC_FUNC_FORK
-dnl? AC_PROG_GCC_TRADITIONAL
+AC_PROG_GCC_TRADITIONAL
 dnl? AC_FUNC_MALLOC
 dnl? AC_FUNC_MEMCMP
 dnl? AC_FUNC_MKTIME
@@ -100,20 +96,6 @@ dnl? 				gettimeofday inet_ntoa localeconv localtime_r \
 dnl? 				memmove memset mkdir munmap select socket \
 dnl? 				strchr strcspn strdup strerror strpbrk strstr \
 dnl? 				strtol strtoul tzset])
-
-
-dnl Check for GTK+
-test -z "$enable_gtk1" && enable_gtk1=$default_enable_gtk1
-AC_ARG_ENABLE(gtk1,  [  --enable-gtk1    use GTK+])
-if test "$enable_gtk1" = "yes" ; then
-  dnl detect GTK1.x
-  AM_PATH_GTK(1.2.7, oks_cv_gtk_version=1.2.7)
-  if test -z "$oks_cv_gtk_version" ; then
-	AC_MSG_ERROR([GTK+ not found])
-  fi
-  dnl AC_MSG_NOTICE([Found GTK+ v.$oks_cv_gtk_version, CFLAGS="$GTK_CFLAGS", LIBS="$GTK_LIBS" ])
-fi
-AM_CONDITIONAL([GTK], [test $enable_gtk1 = yes])
 
 
 # Default flags for C programs.
