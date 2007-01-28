@@ -25,14 +25,11 @@
 */
 
 #include "subj-priv.h"
-#include <optikus/conf-net.h>	/* for OHTONS,... */
+#include <optikus/conf-net.h>	/* for OHTONS,nonblocking,... */
 
 #include <unistd.h>			/* for close */
-#include <stdio.h>			/* for perror */
 #include <errno.h>			/* for errno,EPIPE */
 #include <string.h>			/* for strlen,... */
-#include <fcntl.h>			/* for F_GETFL,F_SETFL,O_NONBLOCK */
-#include <sys/socket.h>		/* for recv,... */
 #include <netinet/in.h>		/* for sockaddr_in */
 #include <netinet/tcp.h>	/* for TCP_NODELAY */
 #include <arpa/inet.h>		/* for inet_ntoa */
@@ -42,43 +39,21 @@
 #endif /* HAVE_CONFIG_H */
 
 #if defined(VXWORKS)
-#include <sockLib.h>
 #include <selectLib.h>
-#include <netinet/in.h>
-#include <hostLib.h>
-#include <netinet/tcp.h>
-#include <ioLib.h>
 #include <inetLib.h>
 #endif /* VXWORKS */
 
-char    osubj_hub_desc[140] = { 0 };
 
 /* TCP/IP connection */
 
-#if defined(HAVE_CONFIG_H)
-#include <config.h>			/* for VXWORKS,SOLARIS */
-#endif /* HAVE_CONFIG_H */
-
-#if defined(VXWORKS) || defined(SOLARIS)
-/* FIXME: autoconf it ! */
-#if !defined(_SOCKLEN_T)
-typedef int socklen_t;			/* not defined in VxWorks/Solaris6 */
-#endif /* !SOCKLEN_T */
-#endif /* VXWORKS || SOLARIS */
-
-#if defined(VXWORKS) || defined(SOLARIS)
-/* FIXME: autoconf it ! */
-#define OSUBJ_IO_FLAGS   0
-#else
-#define OSUBJ_IO_FLAGS   MSG_NOSIGNAL	/* avoid SIGPIPE */
-#endif /* VXWORKS || SOLARIS */
+char    osubj_hub_desc[140];
 
 bool_t  osubj_allow_reconnect = TRUE;
 
-int     osubj_serv_sock = 0;
-int     osubj_data_sock = 0;
-int     osubj_cmnd_sock = 0;
-int     osubj_cntl_sock = 0;
+int     osubj_serv_sock;
+int     osubj_data_sock;
+int     osubj_cmnd_sock;
+int     osubj_cntl_sock;
 
 struct sockaddr_in osubj_hub_cntl_addr;
 struct sockaddr_in osubj_tmp_cntl_addr;
@@ -89,15 +64,15 @@ struct sockaddr_in osubj_tmp_cntl_addr;
 
 int     osubj_conn_state = OSUBJ_CONN_NONE;
 
-int     osubj_polling_mask = 0;
+int     osubj_polling_mask;
 
-long    osubj_routine_ms = 0;
+long    osubj_routine_ms;
 
-long    osubj_alive_get_wd = 0;
-long    osubj_alive_put_wd = 0;
+long    osubj_alive_get_wd;
+long    osubj_alive_put_wd;
 
-ushort_t osubj_subj_id = 0;
-ushort_t osubj_temp_id = 0;
+ushort_t osubj_subj_id;
+ushort_t osubj_temp_id;
 
 /* packet sending */
 
@@ -105,8 +80,8 @@ ushort_t osubj_temp_id = 0;
 
 int     osubj_init_q_size = OSUBJ_Q_SIZE;
 
-int     osubj_resend_limit = 0;
-long    osubj_resend_suspend_ms = 0;
+int     osubj_resend_limit;
+long    osubj_resend_suspend_ms;
 
 typedef struct
 {
@@ -117,17 +92,17 @@ typedef struct
 } OsubjQueuedPacket_t;
 
 char    osubj_hdr_buf[16];
-int     osubj_hdr_off = 0;
+int     osubj_hdr_off;
 
 OsubjQueuedPacket_t osubj_reget = { -1, -1, -1, NULL };
 OsubjQueuedPacket_t osubj_reput = { -1, -1, -1, NULL };
 
-OsubjQueuedPacket_t *osubj_q_buf = NULL;
+OsubjQueuedPacket_t *osubj_q_buf;
 
-int     osubj_q_len = 0;
-int     osubj_q_size = 0;
-int     osubj_q_rd = 0;
-int     osubj_q_wr = 0;
+int     osubj_q_len;
+int     osubj_q_size;
+int     osubj_q_rd;
+int     osubj_q_wr;
 
 int     osubj_can_immed = 1;	/* 0 = never send packets immediately
 								 * 1 = packets less than 800 bytes
@@ -138,8 +113,8 @@ int     osubj_can_immed = 1;	/* 0 = never send packets immediately
 #define OSUBJ_DATA_MON_TTL        50
 #define OSUBJ_MAX_DATA_MON_REPLY  100
 
-long   *osubj_data_mon_buf = 0;
-long    osubj_data_mon_start = 0;
+long   *osubj_data_mon_buf;
+long    osubj_data_mon_start;
 
 
 
@@ -196,22 +171,8 @@ osubjInitNetwork(int serv_port)
 		perror("cannot bind control socket");
 		goto FAIL;
 	}
-
-#if defined(VXWORKS)
-	/* FIXME: autoconf it ! */
-	rc = ioctl(osubj_cntl_sock, FIONBIO, (int) &on);
-	if (rc == ERROR)
-		perror("CNTL/FIONBIO");
-#else /* !VXWORKS */
-	rc = fcntl(osubj_cntl_sock, F_GETFL, 0);
-	if (rc == ERROR)
-		perror("CNTL/O_NONBLOCK/GET");
-	else {
-		rc = fcntl(osubj_cntl_sock, F_SETFL, rc | O_NONBLOCK);
-		if (rc == ERROR)
-			perror("CNTL/O_NONBLOCK/SET");
-	}
-#endif /* VXWORKS */
+	if (setNonBlocking(osubj_cntl_sock) == ERROR)
+		goto FAIL;
 
 	/* create TCP accepting socket */
 	osubj_data_sock = 0;
@@ -239,22 +200,8 @@ osubjInitNetwork(int serv_port)
 		perror("cannot listen on server socket");
 		goto FAIL;
 	}
-
-#if defined(VXWORKS)
-	/* FIXME: autoconf it ! */
-	rc = ioctl(osubj_serv_sock, FIONBIO, (int) &on);
-	if (rc == ERROR)
-		perror("SERV/FIONBIO");
-#else /* !VXWORKS */
-	rc = fcntl(osubj_serv_sock, F_GETFL, 0);
-	if (rc == ERROR)
-		perror("SERV/O_NONBLOCK/GET");
-	else {
-		rc = fcntl(osubj_serv_sock, F_SETFL, rc | O_NONBLOCK);
-		if (rc == ERROR)
-			perror("SERV/O_NONBLOCK/SET");
-	}
-#endif /* VXWORKS */
+	if (setNonBlocking(osubj_serv_sock) == ERROR)
+		goto FAIL;
 
 	/* create UDP command socket */
 	osubj_cmnd_sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -276,22 +223,8 @@ osubjInitNetwork(int serv_port)
 		perror("cannot bind control socket");
 		goto FAIL;
 	}
-
-#if defined(VXWORKS)
-	/* FIXME: autoconf it ! */
-	rc = ioctl(osubj_cmnd_sock, FIONBIO, (int) &on);
-	if (rc == ERROR)
-		perror("CNTL/FIONBIO");
-#else /* !VXWORKS */
-	rc = fcntl(osubj_cmnd_sock, F_GETFL, 0);
-	if (rc == ERROR)
-		perror("CNTL/O_NONBLOCK/GET");
-	else {
-		rc = fcntl(osubj_cmnd_sock, F_SETFL, rc | O_NONBLOCK);
-		if (rc == ERROR)
-			perror("CNTL/O_NONBLOCK/SET");
-	}
-#endif /* VXWORKS */
+	if (setNonBlocking(osubj_cmnd_sock) == ERROR)
+		goto FAIL;
 
 	/* setup variables */
 	osubj_subj_id = osubj_temp_id = 0;
@@ -444,7 +377,7 @@ osubjPokeStream(int type, int len, void *dp)
 		blen = osubj_reput.len - osubj_reput.off;
 		if (blen > 0)
 			n = send(osubj_data_sock, osubj_reput.buf + osubj_reput.off,
-					 blen, OSUBJ_IO_FLAGS);
+					 blen, O_MSG_NOSIGNAL);
 		else
 			n = blen = 0;
 		osubj_reput.off += n;
@@ -485,7 +418,7 @@ osubjPokeStream(int type, int len, void *dp)
 	cksum = osubjCheckSum(buf, len + OLANG_HEAD_LEN);
 	*(ushort_t *) (buf + blen - OLANG_TAIL_LEN) = OHTONS(cksum);
 	if (blen > 0)
-		n = send(osubj_data_sock, (void *) buf, blen, OSUBJ_IO_FLAGS);
+		n = send(osubj_data_sock, (void *) buf, blen, O_MSG_NOSIGNAL);
 	else
 		n = blen = 0;
 	osubj_alive_put_wd = osubjClock();
@@ -731,7 +664,7 @@ osubjReceiveStream(void)
 			osubjLogAt(9, "trying to reget off=%d len=%d",
 						osubj_reget.off, osubj_reget.len);
 			num = recv(osubj_data_sock, osubj_reget.buf + osubj_reget.off, len,
-					   OSUBJ_IO_FLAGS);
+					   O_MSG_NOSIGNAL);
 			if (num <= 0) {
 				osubjLogAt(4, "broken stream - null reget len=%d num=%d",
 							len, num);
@@ -749,7 +682,7 @@ osubjReceiveStream(void)
 			/* check for new packet */
 			len = OLANG_HEAD_LEN - osubj_hdr_off;
 			num = recv(osubj_data_sock,
-					   (osubj_hdr_buf + osubj_hdr_off), len, OSUBJ_IO_FLAGS);
+					   (osubj_hdr_buf + osubj_hdr_off), len, O_MSG_NOSIGNAL);
 			if (num > 0)
 				osubj_hdr_off += num;
 			osubjLogAt(9, "peek at stream num=%d first=%d", num, first_pass);
@@ -783,11 +716,11 @@ osubjReceiveStream(void)
 				num = 0;
 				osubj_reget.buf = NULL;
 				num = recv(osubj_data_sock, (void *) csbuf, OLANG_TAIL_LEN,
-						   MSG_PEEK | OSUBJ_IO_FLAGS);
+						   MSG_PEEK | O_MSG_NOSIGNAL);
 				if (num != OLANG_TAIL_LEN)
 					break;
 				num = recv(osubj_data_sock, (void *) csbuf, OLANG_TAIL_LEN,
-						   OSUBJ_IO_FLAGS);
+						   O_MSG_NOSIGNAL);
 				cksum = csbuf[0];
 				cksum = ONTOHS(cksum);
 			} else {
@@ -801,7 +734,7 @@ osubjReceiveStream(void)
 					osubjLogAt(3, "cannot allocate length %d", len);
 					break;
 				}
-				num = recv(osubj_data_sock, osubj_reget.buf, len, OSUBJ_IO_FLAGS);
+				num = recv(osubj_data_sock, osubj_reget.buf, len, O_MSG_NOSIGNAL);
 				if (num <= 0) {
 					osubj_conn_state = OSUBJ_CONN_EXIT;
 					osubjLogAt(4, "broken stream - len=%d got=%d", len, num);
@@ -918,7 +851,7 @@ osubjAcceptConnection()
 {
 	struct sockaddr_in addr;
 	socklen_t addr_len = sizeof(addr);
-	int     sock, rc, on;
+	int     sock, on;
 
 	sock = accept(osubj_serv_sock, (struct sockaddr *) &addr, &addr_len);
 	if (sock == ERROR)
@@ -928,24 +861,9 @@ osubjAcceptConnection()
 		close(sock);
 		return ERROR;
 	}
-	/* make socket non-blocking */
-#if defined(VXWORKS)
-	/* FIXME: autoconf it ! */
-	on = 1;
-	rc = ioctl(sock, FIONBIO, (int) &on);
-	if (rc == ERROR)
-		perror("DATA/FIONBIO");
-#else /* !VXWORKS */
-	rc = fcntl(sock, F_GETFL, 0);
-	if (rc == ERROR)
-		perror("DATA/O_NONBLOCK/GET");
-	else {
-		rc = fcntl(sock, F_SETFL, rc | O_NONBLOCK);
-		if (rc == ERROR)
-			perror("DATA/O_NONBLOCK");
-	}
-#endif /* VXWORKS */
 
+	/* set socket options */
+	setNonBlocking(sock);
 #if OLANG_PREFER_TCP_NODELAY
 	on = 1;
 	setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (void *) &on, sizeof(on));

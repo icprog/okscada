@@ -26,42 +26,17 @@
 
 #include "hub-priv.h"
 #include <optikus/util.h>		/* for osMsClock */
-#include <optikus/conf-net.h>	/* for OMAX,ONTOHS,... */
+#include <optikus/conf-net.h>	/* for OMAX,ONTOHS,nonblocking... */
 #include <optikus/conf-mem.h>	/* for oxnew,oxbcopy,... */
 
 #include <unistd.h>			/* for close */
 #include <stdlib.h>			/* for atoi */
 #include <errno.h>			/* for errno,EPIPE */
 #include <string.h>			/* for strncmp,... */
-#include <fcntl.h>			/* for F_GETFL,F_SETFL,O_NONBLOCK */
-#include <stdio.h>			/* for perror */
-#include <sys/socket.h>		/* for sockaddr */
-#include <netinet/in.h>		/* for sockaddr_in */
 #include <netinet/tcp.h>	/* for TCP_NODELAY */
-#include <netdb.h>			/* for gethostbyname */
 
-#if defined(VXWORKS)
-#include <sockLib.h>
-#include <netinet/in.h>
-#include <hostLib.h>
-#include <netinet/tcp.h>
-#include <ioLib.h>
-#endif
 
 /* TCP/IP connection */
-
-#if defined(HAVE_CONFIG_H)
-#include <config.h>			/* for SOLARIS */
-#endif /* HAVE_CONFIG_H */
-
-#if defined(SOLARIS)
-#define OLANG_IO_FLAGS   0
-#if !defined(_SOCKLEN_T)
-typedef int socklen_t;
-#endif
-#else
-#define OLANG_IO_FLAGS   MSG_NOSIGNAL	/* avoid SIGPIPE */
-#endif
 
 int     ohub_subj_cntl_sock;
 struct sockaddr_in ohub_subj_cntl_addr;
@@ -186,29 +161,9 @@ ohubSubjOpen(const char *subj_url, OhubAgent_t * pagent)
 
 	/* create control address */
 	oxvzero(&pnsubj->cntl_addr);
-	{
-#if defined(VXWORKS)
-		/* FIXME: autoconfiscate this ! */
-		int     he = hostGetByName((char *) host);
-
-		if (he == ERROR)
-			he = 0;
-		else {
-			pnsubj->cntl_addr.sin_addr.s_addr = he;
-			pnsubj->cntl_addr.sin_family = AF_INET;
-		}
-#else /* !VXWORKS */
-		struct hostent *he = gethostbyname(host);
-
-		if (he) {
-			oxbcopy(he->h_addr, &pnsubj->cntl_addr.sin_addr, he->h_length);
-			pnsubj->cntl_addr.sin_family = he->h_addrtype;
-		}
-#endif /* VXWORKS */
-		if (!he) {
-			ohubLog(2, "unknown host %s", host);
-			goto FAIL;
-		}
+	if (inetResolveHostName(host, & pnsubj->cntl_addr) < 0) {
+		ohubLog(2, "unknown host %s", host);
+		goto FAIL;
 	}
 	pnsubj->cntl_addr.sin_port = htons(port);
 
@@ -368,23 +323,8 @@ ohubSubjInitNetwork()
 					 (struct sockaddr *) &ohub_subj_cntl_addr, &addr_len);
 	if (rc == ERROR)
 		goto FAIL;
-#if defined(VXWORKS)
-	/* FIXME: autoconf it ! */
-	int     on = 1;
-	rc = ioctl(ohub_subj_cntl_sock, FIONBIO, (int) &on);
-	if (rc == ERROR)
-		perror("CNTL/FIONBIO");
-#else /* !VXWORKS */
-	rc = fcntl(ohub_subj_cntl_sock, F_GETFL, 0);
-	if (rc == ERROR)
-		perror("CNTL/O_NONBLOCK/GET");
-	else {
-		rc = fcntl(ohub_subj_cntl_sock, F_SETFL, rc | O_NONBLOCK);
-		if (rc == ERROR)
-			perror("CNTL/O_NONBLOCK/SET");
-	}
-#endif /* VXWORKS */
-
+	if (setNonBlocking(ohub_subj_cntl_sock) == ERROR)
+		goto FAIL;
 	/* setup variables */
 	strcpy(ohub_cntl_subj.url, "{CNTL}");
 	return OK;
@@ -461,7 +401,7 @@ ohubSubjPokeStream(OhubNetSubj_t * pnsubj, int type, int len, void *dp)
 		blen = pnsubj->reput_len - pnsubj->reput_off;
 		if (blen > 0)
 			n = send(pnsubj->data_sock, pnsubj->reput_buf + pnsubj->reput_off,
-					 blen, OLANG_IO_FLAGS);
+					 blen, O_MSG_NOSIGNAL);
 		else
 			n = blen = 0;
 		pnsubj->reput_off += n;
@@ -491,7 +431,7 @@ ohubSubjPokeStream(OhubNetSubj_t * pnsubj, int type, int len, void *dp)
 	cksum = ohubSubjCheckSum(buf, len + OLANG_HEAD_LEN);
 	*(ushort_t *) (buf + blen - OLANG_TAIL_LEN) = OHTONS(cksum);
 	if (blen > 0)
-		n = send(pnsubj->data_sock, (void *) buf, blen, OLANG_IO_FLAGS);
+		n = send(pnsubj->data_sock, (void *) buf, blen, O_MSG_NOSIGNAL);
 	else
 		n = blen = 0;
 	if (n == blen) {
@@ -702,7 +642,7 @@ ohubSubjReceiveStream(OhubNetSubj_t * pnsubj)
 			ohubLog(9, "trying to reget off=%d len=%d from {%s}",
 					pnsubj->reget_off, pnsubj->reget_len, pnsubj->url);
 			num = recv(pnsubj->data_sock, pnsubj->reget_buf + pnsubj->reget_off,
-						len, OLANG_IO_FLAGS);
+						len, O_MSG_NOSIGNAL);
 			if (num <= 0) {
 				ohubLog(4, "broken subj stream {%s} - null reget "
 						"type=%04x len=%d num=%d err=%d (%s)",
@@ -721,8 +661,8 @@ ohubSubjReceiveStream(OhubNetSubj_t * pnsubj)
 		} else {
 			/* check for new packet */
 			len = OLANG_HEAD_LEN - pnsubj->hdr_off;
-			num = recv(pnsubj->data_sock,
-					   (pnsubj->hdr_buf + pnsubj->hdr_off), len, OLANG_IO_FLAGS);
+			num = recv(pnsubj->data_sock, (pnsubj->hdr_buf + pnsubj->hdr_off),
+						len, O_MSG_NOSIGNAL);
 			if (num > 0)
 				pnsubj->hdr_off += num;
 			ohubLog(9, "peek at stream {%s} off=%d len=%d num=%d first=%d",
@@ -761,11 +701,11 @@ ohubSubjReceiveStream(OhubNetSubj_t * pnsubj)
 				num = 0;
 				pnsubj->reget_buf = NULL;
 				num = recv(pnsubj->data_sock, (void *) csbuf, OLANG_TAIL_LEN,
-						   MSG_PEEK | OLANG_IO_FLAGS);
+						   MSG_PEEK | O_MSG_NOSIGNAL);
 				if (num != OLANG_TAIL_LEN)
 					break;
 				num = recv(pnsubj->data_sock, (void *) csbuf, OLANG_TAIL_LEN,
-						   OLANG_IO_FLAGS);
+						   O_MSG_NOSIGNAL);
 				cksum = csbuf[0];
 				cksum = ONTOHS(cksum);
 			} else {
@@ -781,7 +721,7 @@ ohubSubjReceiveStream(OhubNetSubj_t * pnsubj)
 					break;
 				}
 				num = recv(pnsubj->data_sock, pnsubj->reget_buf,
-							len, OLANG_IO_FLAGS);
+							len, O_MSG_NOSIGNAL);
 				if (num <= 0) {
 					pnsubj->subj_state = OHUB_SUBJ_EXIT;
 					ohubLog(4,
@@ -973,24 +913,7 @@ ohubSubjHandlePingReply(OhubNetSubj_t * pnsubj, int kind, int type, int len,
 	}
 
 	/* set socket options */
-
-#if defined(VXWORKS)
-	/* FIXME: autoconf it ! */
-	on = 1;
-	rc = ioctl(pnsubj->data_sock, FIONBIO, (int) &on);
-	if (rc == ERROR)
-		perror("DATA/FIONBIO");
-#else /* !VXWORKS */
-	rc = fcntl(pnsubj->data_sock, F_GETFL, 0);
-	if (rc == ERROR)
-		perror("DATA/O_NONBLOCK/GET");
-	else {
-		rc = fcntl(pnsubj->data_sock, F_SETFL, rc | O_NONBLOCK);
-		if (rc == ERROR)
-			perror("DATA/O_NONBLOCK");
-	}
-#endif /* VXWORKS */
-
+	setNonBlocking(pnsubj->data_sock);
 	on = 1;
 	setsockopt(pnsubj->data_sock, IPPROTO_TCP, TCP_NODELAY, (void *) &on,
 			   sizeof(on));

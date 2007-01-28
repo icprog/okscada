@@ -29,40 +29,17 @@
 
 #include "hub-priv.h"
 #include <optikus/util.h>		/* for osMsClock */
-#include <optikus/conf-net.h>	/* for OMAX,ONTOHS,... */
+#include <optikus/conf-net.h>	/* for OMAX,ONTOHS,nonblocking,... */
 #include <optikus/conf-mem.h>	/* for oxnew,oxbcopy,... */
 
 #include <unistd.h>			/* for close */
 #include <stdlib.h>			/* for atoi */
 #include <errno.h>			/* for errno,EPIPE */
 #include <string.h>			/* for strncmp,... */
-#include <fcntl.h>			/* for F_GETFL,F_SETFL,O_NONBLOCK */
-#include <stdio.h>			/* for perror */
-#include <sys/socket.h>		/* for sockaddr */
 #include <netinet/in.h>		/* for sockaddr_in */
 #include <netinet/tcp.h>	/* for TCP_NODELAY */
 #include <arpa/inet.h>		/* for inet_ntoa */
 
-#if defined(VXWORKS)
-#include <sockLib.h>
-#include <netinet/in.h>
-#include <hostLib.h>
-#include <netinet/tcp.h>
-#include <ioLib.h>
-#endif
-
-#if defined(HAVE_CONFIG_H)
-#include <config.h>			/* for SOLARIS */
-#endif /* HAVE_CONFIG_H */
-
-#if defined(SOLARIS)
-#define OLANG_IO_FLAGS   0
-#if !defined(_SOCKLEN_T)
-typedef int socklen_t;
-#endif
-#else
-#define OLANG_IO_FLAGS   MSG_NOSIGNAL	/* avoid SIGPIPE */
-#endif
 
 int     ohub_watch_serv_sock;
 int     ohub_watch_cntl_sock;
@@ -189,21 +166,8 @@ ohubWatchInitNetwork(int serv_port)
 		goto FAIL;
 	}
 
-#if defined(VXWORKS)
-	/* FIXME: autoconf it ! */
-	rc = ioctl(ohub_watch_cntl_sock, FIONBIO, (int) &on);
-	if (rc == ERROR)
-		perror("CNTL/FIONBIO");
-#else /* !VXWORKS */
-	rc = fcntl(ohub_watch_cntl_sock, F_GETFL, 0);
-	if (rc == ERROR)
-		perror("CNTL/O_NONBLOCK/GET");
-	else {
-		rc = fcntl(ohub_watch_cntl_sock, F_SETFL, rc | O_NONBLOCK);
-		if (rc == ERROR)
-			perror("CNTL/O_NONBLOCK/SET");
-	}
-#endif /* VXWORKS */
+	if (setNonBlocking(ohub_watch_cntl_sock) == ERROR)
+		goto FAIL;
 
 	/* create TCP accepting socket */
 	ohub_watch_serv_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -230,21 +194,8 @@ ohubWatchInitNetwork(int serv_port)
 		perror("cannot listen on server socket");
 		goto FAIL;
 	}
-#if defined(VXWORKS)
-	/* FIXME: should be handled by autoconf */
-	rc = ioctl(ohub_watch_serv_sock, FIONBIO, (int) &on);
-	if (rc == ERROR)
-		perror("SERV/FIONBIO");
-#else /* !VXWORKS */
-	rc = fcntl(ohub_watch_serv_sock, F_GETFL, 0);
-	if (rc == ERROR)
-		perror("SERV/O_NONBLOCK/GET");
-	else {
-		rc = fcntl(ohub_watch_serv_sock, F_SETFL, rc | O_NONBLOCK);
-		if (rc == ERROR)
-			perror("SERV/O_NONBLOCK/SET");
-	}
-#endif /* VXWORKS */
+	if (setNonBlocking(ohub_watch_serv_sock) == ERROR)
+		goto FAIL;
 
 	/* setup variables */
 	strcpy(ohub_cntl_watch.url, "[CNTL]");
@@ -431,7 +382,7 @@ ohubWatchPokeStream(OhubNetWatch_t * pnwatch, int type, int len, void *dp)
 		blen = pnwatch->reput_len - pnwatch->reput_off;
 		if (blen > 0)
 			n = send(pnwatch->data_sock, pnwatch->reput_buf + pnwatch->reput_off,
-					 blen, OLANG_IO_FLAGS);
+					 blen, O_MSG_NOSIGNAL);
 		else
 			n = blen = 0;
 		pnwatch->reput_off += n;
@@ -460,7 +411,7 @@ ohubWatchPokeStream(OhubNetWatch_t * pnwatch, int type, int len, void *dp)
 	cksum = ohubWatchCheckSum(buf, len + OLANG_HEAD_LEN);
 	*(ushort_t *) (buf + blen - OLANG_TAIL_LEN) = OHTONS(cksum);
 	if (blen > 0)
-		n = send(pnwatch->data_sock, (void *) buf, blen, OLANG_IO_FLAGS);
+		n = send(pnwatch->data_sock, (void *) buf, blen, O_MSG_NOSIGNAL);
 	else
 		n = blen = 0;
 	if (n == blen) {
@@ -682,7 +633,7 @@ ohubWatchReceiveStream(OhubNetWatch_t * pnwatch)
 					pnwatch->url, pnwatch->reget_off, pnwatch->reget_len);
 			num = recv(pnwatch->data_sock,
 						pnwatch->reget_buf + pnwatch->reget_off, len,
-						OLANG_IO_FLAGS);
+						O_MSG_NOSIGNAL);
 			if (num <= 0) {
 				ohubLog(4,
 						"broken watch stream [%s] - null reget len=%d got=%d",
@@ -701,7 +652,7 @@ ohubWatchReceiveStream(OhubNetWatch_t * pnwatch)
 			/* check for new packet */
 			len = OLANG_HEAD_LEN - pnwatch->hdr_off;
 			num = recv(pnwatch->data_sock,
-					   (pnwatch->hdr_buf + pnwatch->hdr_off), len, OLANG_IO_FLAGS);
+					   (pnwatch->hdr_buf + pnwatch->hdr_off), len, O_MSG_NOSIGNAL);
 			if (num > 0)
 				pnwatch->hdr_off += num;
 			ohubLog(9, "peek at stream from [%s] off=%d len=%d num=%d first=%d",
@@ -743,12 +694,12 @@ ohubWatchReceiveStream(OhubNetWatch_t * pnwatch)
 				num = 0;
 				pnwatch->reget_buf = NULL;
 				num = recv(pnwatch->data_sock, (void *) csbuf, OLANG_TAIL_LEN,
-						   MSG_PEEK | OLANG_IO_FLAGS);
+						   MSG_PEEK | O_MSG_NOSIGNAL);
 				if (num != OLANG_TAIL_LEN)
 					break;
 				num =
 					recv(pnwatch->data_sock, (void *) csbuf, OLANG_TAIL_LEN,
-						 OLANG_IO_FLAGS);
+						 O_MSG_NOSIGNAL);
 				cksum = ONTOHS(csbuf[0]);
 			} else {
 				/* get data and checksum */
@@ -762,7 +713,7 @@ ohubWatchReceiveStream(OhubNetWatch_t * pnwatch)
 					break;
 				}
 				num = recv(pnwatch->data_sock, pnwatch->reget_buf, len,
-							OLANG_IO_FLAGS);
+							O_MSG_NOSIGNAL);
 				if (num <= 0) {
 					pnwatch->watch_state = OHUB_WATCH_EXIT;
 					ohubLog(4, "broken watch stream [%s] - len=%d num=%d",
@@ -921,7 +872,7 @@ ohubWatchAcceptConnection()
 	OhubNetWatch_t *pnwatch;
 	struct sockaddr_in addr;
 	socklen_t addr_len = sizeof(addr);
-	int     sock, rc, on;
+	int     sock, on;
 
 	sock = accept(ohub_watch_serv_sock, (struct sockaddr *) &addr, &addr_len);
 	if (sock == ERROR)
@@ -932,25 +883,8 @@ ohubWatchAcceptConnection()
 		return ERROR;
 	}
 
-	/* make socket non-blocking */
-
-#if defined(VXWORKS)
-	/* FIXME: autoconf it ! */
-	on = 1;
-	rc = ioctl(sock, FIONBIO, (int) &on);
-	if (rc == ERROR)
-		perror("DATA/FIONBIO");
-#else /* !VXWORKS */
-	rc = fcntl(sock, F_GETFL, 0);
-	if (rc == ERROR)
-		perror("DATA/O_NONBLOCK/GET");
-	else {
-		rc = fcntl(sock, F_SETFL, rc | O_NONBLOCK);
-		if (rc == ERROR)
-			perror("DATA/O_NONBLOCK");
-	}
-#endif /* VXWORKS */
-
+	/* set socket options */
+	setNonBlocking(sock);
 	on = 1;
 	setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (void *) &on, sizeof(on));
 
